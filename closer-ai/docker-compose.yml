@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: mirror.gcr.io/library/postgres:alpine
+    restart: always
+    environment:
+      POSTGRES_USER: closeruser
+      POSTGRES_PASSWORD: closerpassword
+      POSTGRES_DB: closerai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

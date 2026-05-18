@@ -1,0 +1,88 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id                String         @id @default(uuid())
+  full_name         String
+  phone_number      String
+  email             String?
+  linkedin_url      String?
+  property_address  String?
+  property_type     String?
+  estimated_value   Float?
+  seller_motivation String?
+  notes             String?
+  tags              String?
+  call_status       String         @default("NEW")
+  follow_up_date    DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  sessions          CallSession[]
+  noteHistory       Note[]
+}
+
+model CallSession {
+  id              String         @id @default(uuid())
+  leadId          String
+  lead            Lead           @relation(fields: [leadId], references: [id])
+  startTime       DateTime       @default(now())
+  endTime         DateTime?
+  duration        Int?           // in seconds
+  outcome         String?
+  transcript      Transcript?
+  suggestions     AISuggestion[]
+  objections      Objection[]
+  createdAt       DateTime       @default(now())
+}
+
+model Transcript {
+  id            String      @id @default(uuid())
+  sessionId     String      @unique
+  session       CallSession @relation(fields: [sessionId], references: [id])
+  content       String      // Full transcript text
+  jsonContent   String      // Structured transcript with timestamps and speaker labels
+  createdAt     DateTime    @default(now())
+}
+
+model AISuggestion {
+  id            String      @id @default(uuid())
+  sessionId     String
+  session       CallSession @relation(fields: [sessionId], references: [id])
+  prompt        String
+  response      String
+  wasUsed       Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+}
+
+model Objection {
+  id            String      @id @default(uuid())
+  sessionId     String
+  session       CallSession @relation(fields: [sessionId], references: [id])
+  type          String      // e.g., "NOT_INTERESTED"
+  text          String      // The text that triggered it
+  rebuttal      String
+  createdAt     DateTime    @default(now())
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
