@@ -7,7 +7,8 @@ interface Lead {
   email?: string;
   call_status: string;
   property_address?: string;
-  sessions?: any[];
+  deal_score?: number;
+  motivation_tags?: string;
 }
 
 interface Suggestion {
@@ -15,12 +16,33 @@ interface Suggestion {
   detected_objection?: string;
   rebuttal?: string;
   confidence_tips?: string;
+  pronunciation_score?: number;
+  multiStyleRebuttals?: {
+      soft: string;
+      firm: string;
+      aggressive: string;
+      empathy: string;
+  };
 }
 
 interface TranscriptEntry {
   text: string;
   speaker: string;
   timestamp: Date;
+}
+
+interface AppInsight {
+    motivation: string[];
+    urgency: number;
+    dealProbability: number;
+    personality: string;
+}
+
+interface AppStrategy {
+    tone: string;
+    pacing: string;
+    closingStyle: string;
+    keyPoints: string[];
 }
 
 interface AppState {
@@ -30,6 +52,8 @@ interface AppState {
   transcript: TranscriptEntry[];
   suggestions: Suggestion[];
   confidenceMode: 'beginner' | 'intermediate' | 'advanced';
+  currentInsight: AppInsight | null;
+  currentStrategy: AppStrategy | null;
 
   setLeads: (leads: Lead[]) => void;
   setCurrentLead: (lead: Lead | null) => void;
@@ -37,6 +61,8 @@ interface AppState {
   addTranscriptEntry: (entry: TranscriptEntry) => void;
   addSuggestion: (suggestion: Suggestion) => void;
   setConfidenceMode: (mode: 'beginner' | 'intermediate' | 'advanced') => void;
+  setInsight: (insight: AppInsight) => void;
+  setStrategy: (strategy: AppStrategy) => void;
   clearCallData: () => void;
 }
 
@@ -47,6 +73,8 @@ export const useAppStore = create<AppState>((set) => ({
   transcript: [],
   suggestions: [],
   confidenceMode: 'beginner',
+  currentInsight: null,
+  currentStrategy: null,
 
   setLeads: (leads) => set({ leads }),
   setCurrentLead: (lead) => set({ currentLead: lead }),
@@ -55,8 +83,10 @@ export const useAppStore = create<AppState>((set) => ({
     transcript: [...state.transcript, entry].slice(-50)
   })),
   addSuggestion: (suggestion) => set((state) => ({
-    suggestions: [suggestion, ...state.suggestions].slice(0, 20)
+    suggestions: [suggestion, ...state.suggestions].slice(0, 10)
   })),
   setConfidenceMode: (confidenceMode) => set({ confidenceMode }),
-  clearCallData: () => set({ transcript: [], suggestions: [] }),
+  setInsight: (currentInsight) => set({ currentInsight }),
+  setStrategy: (currentStrategy) => set({ currentStrategy }),
+  clearCallData: () => set({ transcript: [], suggestions: [], currentInsight: null, currentStrategy: null }),
 }));

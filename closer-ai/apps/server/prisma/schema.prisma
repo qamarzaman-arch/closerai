@@ -26,6 +26,8 @@ model Lead {
   property_type     String?
   estimated_value   Float?
   seller_motivation String?
+  motivation_tags   String?        // comma-separated: financial_stress, relocation, etc.
+  deal_score        Float?         @default(0)
   notes             String?
   tags              String?
   call_status       String         @default("NEW")
@@ -37,17 +39,22 @@ model Lead {
 }
 
 model CallSession {
-  id              String         @id @default(uuid())
-  leadId          String
-  lead            Lead           @relation(fields: [leadId], references: [id])
-  startTime       DateTime       @default(now())
-  endTime         DateTime?
-  duration        Int?           // in seconds
-  outcome         String?
-  transcript      Transcript?
-  suggestions     AISuggestion[]
-  objections      Objection[]
-  createdAt       DateTime       @default(now())
+  id                 String         @id @default(uuid())
+  leadId             String
+  lead               Lead           @relation(fields: [leadId], references: [id])
+  startTime          DateTime       @default(now())
+  endTime            DateTime?
+  duration           Int?           // in seconds
+  outcome            String?
+  predicted_outcome  String?
+  seller_personality String?        // Analytical, Skeptical, Motivated, etc.
+  urgency_level      Int?           // 1-10
+  deal_probability   Float?         // 0-1
+  motivation_detected String?
+  transcript         Transcript?
+  suggestions        AISuggestion[]
+  objections         Objection[]
+  createdAt          DateTime       @default(now())
 }
 
 model Transcript {
@@ -65,6 +72,7 @@ model AISuggestion {
   session       CallSession @relation(fields: [sessionId], references: [id])
   prompt        String
   response      String
+  style         String?     // soft, firm, aggressive, empathy
   wasUsed       Boolean     @default(false)
   createdAt     DateTime    @default(now())
 }
@@ -73,9 +81,12 @@ model Objection {
   id            String      @id @default(uuid())
   sessionId     String
   session       CallSession @relation(fields: [sessionId], references: [id])
-  type          String      // e.g., "NOT_INTERESTED"
+  type          String      // e.g., "PRICE_OBJECTION"
   text          String      // The text that triggered it
-  rebuttal      String
+  rebuttal_soft String?
+  rebuttal_firm String?
+  rebuttal_aggressive String?
+  rebuttal_empathy String?
   createdAt     DateTime    @default(now())
 }
 

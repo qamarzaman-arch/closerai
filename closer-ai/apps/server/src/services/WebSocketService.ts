@@ -2,6 +2,8 @@ import { Server } from 'ws';
 import { OpenAIService } from './OpenAIService';
 import { TranscriptionManager } from './TranscriptionManager';
 import { ConversationContextManager, SuggestionThrottler } from './ConversationEngine';
+import { RealEstateIntelligenceService, SellerInsight, ObjectionLibrary } from './RealEstateIntelligenceService';
+import { StrategyEngine } from './StrategyEngine';
 import { PrismaClient } from '@prisma/client';
 import http from 'http';
 import logger from '../utils/logger';
@@ -9,6 +11,7 @@ import { WSMessageSchema } from '../utils/schemas';
 
 const prisma = new PrismaClient();
 const openAIService = new OpenAIService();
+const reIntelligence = new RealEstateIntelligenceService();
 
 export class WebSocketService {
   private wss: Server;
@@ -69,14 +72,27 @@ export class WebSocketService {
 
               case 'END_CALL':
                 if (currentSessionId) {
-                  const duration = 0; // Calculate duration
+                  const insight = reIntelligence.analyzeConversation(contextManager.getContextString());
                   await prisma.callSession.update({
                     where: { id: currentSessionId },
                     data: {
                       endTime: new Date(),
                       outcome: data.outcome,
+                      motivation_detected: insight.motivation.join(', '),
+                      urgency_level: insight.urgency,
+                      deal_probability: insight.dealProbability,
+                      seller_personality: insight.personality
                     }
                   });
+
+                  await prisma.lead.update({
+                      where: { id: (await prisma.callSession.findUnique({ where: { id: currentSessionId } }))?.leadId },
+                      data: {
+                          motivation_tags: insight.motivation.join(','),
+                          deal_score: insight.dealProbability * 100
+                      }
+                  });
+
                   await prisma.transcript.create({
                     data: {
                       sessionId: currentSessionId,
@@ -93,41 +109,61 @@ export class WebSocketService {
             logger.error('WS Message error', { error: error.message });
         }
       });
-
-      ws.on('close', () => {
-        logger.info('WebSocket connection closed');
-      });
     });
   }
 
   private async handleTranscriptUpdate(ws: any, sessionId: string, text: string, speaker: string, contextManager: ConversationContextManager, throttler: SuggestionThrottler, mode: any = 'beginner') {
       contextManager.addMessage(speaker, text);
-      ws.send(JSON.stringify({ type: 'NEW_TRANSCRIPT', text, speaker, timestamp: new Date() }));
+
+      const fullContext = contextManager.getContextString();
+      const insight = reIntelligence.analyzeConversation(fullContext);
+      const strategy = StrategyEngine.getStrategy(insight);
+
+      ws.send(JSON.stringify({
+          type: 'NEW_TRANSCRIPT',
+          text,
+          speaker,
+          timestamp: new Date(),
+          insight,
+          strategy
+      }));
 
       if (throttler.shouldGenerate()) {
-          const context = contextManager.getContextString();
-          const suggestion = await openAIService.getRealtimeSuggestion(context, mode);
+          const suggestion = await openAIService.getRealtimeSuggestion(fullContext, mode, { ...insight, strategy: strategy.tone });
 
           await prisma.aISuggestion.create({
             data: {
               sessionId: sessionId,
-              prompt: context.slice(-200),
+              prompt: fullContext.slice(-200),
               response: JSON.stringify(suggestion)
             }
           });
 
           if (suggestion.detected_objection) {
+            const rebuttals = ObjectionLibrary.getRebuttals(suggestion.detected_objection, insight.personality);
+
             await prisma.objection.create({
               data: {
                 sessionId: sessionId,
                 type: suggestion.detected_objection,
                 text: text,
-                rebuttal: suggestion.rebuttal
+                rebuttal_soft: rebuttals.soft,
+                rebuttal_firm: rebuttals.firm,
+                rebuttal_aggressive: rebuttals.aggressive,
+                rebuttal_empathy: rebuttals.empathy
               }
             });
-          }
 
-          ws.send(JSON.stringify({ type: 'AI_SUGGESTION', suggestion }));
+            ws.send(JSON.stringify({
+                type: 'AI_SUGGESTION',
+                suggestion: {
+                    ...suggestion,
+                    multiStyleRebuttals: rebuttals
+                }
+            }));
+          } else {
+            ws.send(JSON.stringify({ type: 'AI_SUGGESTION', suggestion }));
+          }
       }
   }
 }

@@ -28,28 +28,27 @@ export class OpenAIService {
 
     try {
         const prompt = `
-          Generate a cold calling script for a real estate lead.
-          Lead Info:
+          You are a professional real estate acquisition specialist.
+          Generate a high-converting cold calling script for:
           Name: ${lead.full_name}
           Property: ${lead.property_address}
-          Motivation: ${lead.seller_motivation}
-          Value: ${lead.estimated_value}
+          Motivation: ${lead.seller_motivation || 'Unknown'}
+          Value: ${lead.estimated_value || 'Unknown'}
 
           Confidence Mode: ${mode}
 
-          Requirements:
-          - Sound natural and like a native American sales person.
-          - Use SIMPLE English (crucial for non-native speakers).
-          - Avoid corporate jargon.
-          - Use short sentences.
-          - Include: opening, rapport-building, personalized pitch, pain-point references, objection handling, closing, and follow-up questions.
+          Guidelines:
+          - Style: Native American Sales (Direct, confident, yet polite).
+          - Complexity: ${mode === 'beginner' ? 'EXTREMELY SIMPLE English. Short 5-word sentences. Easy pronunciation.' : 'Professional and persuasive.'}
+          - Structure: Opening, Rapport, Pitch (Problem/Solution), Objection handling for "not interested", and a clear Call to Action (the "Close").
+          - Tone: Empathetic but business-focused. Avoid "I was wondering if..." use "I\'m calling because..."
 
-          Format the response as JSON with these keys: opening, rapport, pitch, pain_points, objections, closing, follow_up.
+          Format as JSON: { opening, rapport, pitch, pain_points, objections, closing, follow_up }
         `;
 
         const response = await ai.chat.completions.create({
           model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: 'system', content: 'You are a real estate sales expert.' }, { role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
         }, { timeout: 5000 });
 
@@ -60,81 +59,74 @@ export class OpenAIService {
     }
   }
 
-  async getRealtimeSuggestion(context: string, mode: ConfidenceMode = 'beginner') {
+  async getRealtimeSuggestion(context: string, mode: ConfidenceMode = 'beginner', insight?: any) {
     const ai = getOpenAI();
-    const detection = this.detectObjectionManual(context);
-
-    if (!ai) return {
-        suggested_response: detection.rebuttal || 'That makes sense. Can you tell me more?',
-        detected_objection: detection.type,
-        rebuttal: detection.rebuttal,
-        confidence_tips: 'Keep listening carefully.'
-    };
 
     try {
-        const prompt = `
-          You are a real-time sales copilot for a non-native English speaker.
-          Current conversation context:
-          "${context}"
+        const systemPrompt = `
+            You are a Real Estate Sales Copilot for a non-native speaker.
 
-          Confidence Mode: ${mode}
+            Seller Context:
+            - Personality: ${insight?.personality || 'Unknown'}
+            - Motivation: ${insight?.motivation?.join(', ') || 'Unknown'}
+            - Strategy: ${insight?.strategy || 'Build rapport'}
 
-          Provide:
-          1. A suggested next response.
-          2. Detection of any objections.
-          3. A rebuttal for the objection.
+            Task:
+            1. Suggest the next best response.
+            2. Detect objections.
+            3. Provide a rebuttal tailored to their personality.
+            4. Provide "Confidence Tips" (how to say it, what to emphasize).
 
-          Prioritize easy-to-speak English and natural tone.
+            Constraints:
+            - Language: ${mode === 'beginner' ? 'Level 1 English. No big words. Max 7 words per sentence.' : 'Natural conversational American English.'}
+            - Style: Real estate investor style (We buy houses).
+            - Avoid: "I am an AI", "How can I help you", robotic formal language.
 
-          Format the response as JSON with keys: suggested_response, detected_objection, rebuttal, confidence_tips.
+            Format as JSON: { suggested_response, detected_objection, rebuttal, confidence_tips, pronunciation_score (1-10) }
         `;
+
+        if (!ai) {
+            return {
+                suggested_response: "Got it. How long have you owned the place?",
+                detected_objection: null,
+                rebuttal: null,
+                confidence_tips: "Speak slowly and clearly.",
+                pronunciation_score: 10
+            };
+        }
 
         const response = await ai.chat.completions.create({
           model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: 'You are a concise sales coach.' }, { role: 'user', content: prompt }],
+          messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Recent Transcript:\n${context}` }
+          ],
           response_format: { type: 'json_object' },
-        }, { timeout: 3000 });
+          timeout: 3000,
+        });
 
-        const aiResult = JSON.parse(response.choices[0].message.content || '{}');
-        return {
-            ...aiResult,
-            detected_objection: aiResult.detected_objection || detection.type,
-            rebuttal: aiResult.rebuttal || detection.rebuttal
-        };
+        return JSON.parse(response.choices[0].message.content || '{}');
     } catch (e: any) {
         logger.error('AI Suggestion failed', { error: e.message });
         return {
-            suggested_response: detection.rebuttal || 'I see. How long have you lived there?',
-            detected_objection: detection.type,
-            rebuttal: detection.rebuttal,
-            confidence_tips: 'Stay calm and professional.'
+            suggested_response: "I see. Are you open to a cash offer?",
+            detected_objection: null,
+            rebuttal: null,
+            confidence_tips: "Keep the momentum going.",
+            pronunciation_score: 9
         };
     }
-  }
-
-  private detectObjectionManual(context: string) {
-    const lower = context.toLowerCase();
-    if (lower.includes('not interested') || lower.includes('don\'t want to sell')) {
-        return { type: 'NOT_INTERESTED', rebuttal: 'I understand. Are you staying for the long term or just not ready yet?' };
-    }
-    if (lower.includes('working with an agent') || lower.includes('have a realtor')) {
-        return { type: 'ALREADY_HAS_AGENT', rebuttal: 'Great! Is that a family friend, or someone you found recently?' };
-    }
-    if (lower.includes('price') || lower.includes('too low') || lower.includes('money')) {
-        return { type: 'PRICE_OBJECTION', rebuttal: 'I hear you. What number did you have in mind for a hassle-free cash offer?' };
-    }
-    return { type: null, rebuttal: null };
   }
 
   private getFallbackScript(lead: any) {
       return {
-        opening: `Hi, is this ${lead.full_name}? I'm calling about ${lead.property_address || 'your property'}.`,
-        rapport: "I was just looking at some houses in your neighborhood and yours caught my eye.",
-        pitch: "I'm a local investor and I'm looking to buy a few more properties. Would you be open to an offer?",
-        pain_points: "We buy as-is, so you don't have to worry about repairs or commissions.",
-        objections: "If they say no, ask if they know anyone else who might be selling.",
-        closing: "I'd love to send you a no-obligation offer. What's the best email for you?",
-        follow_up: "I'll follow up with you in a couple of days."
+        opening: `Hi, is this ${lead.full_name}? I\'m calling about ${lead.property_address || 'your house'}.`,
+        rapport: "I was looking at some houses in your area and yours caught my eye.",
+        pitch: "I\'m a local investor and I buy houses for cash. Would you be open to an offer?",
+        pain_points: "We buy as-is. No repairs. No fees.",
+        objections: "If they aren\'t selling, ask if they have any other properties.",
+        closing: "I\'d love to send you a simple offer. What\'s your email?",
+        follow_up: "I\'ll check back in a few days."
     };
   }
 }
