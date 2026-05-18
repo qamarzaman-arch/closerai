@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { LeadController } from '../controllers/LeadController';
-import { OpenAIService } from '../services/OpenAIService';
-import { LeadRepository } from '../repositories/LeadRepository';
+import { OpenAIService } from '../../infrastructure/services/OpenAIService';
+import { LeadRepository } from '../../domain/repositories/LeadRepository';
 
 const router = Router();
 const leadController = new LeadController();
@@ -17,7 +17,7 @@ router.post('/:id/notes', leadController.addNote);
 
 router.get('/:id/generate-script', async (req, res) => {
   try {
-    const lead = await leadRepo.findById(req.params.id);
+    const lead = await leadRepo.findById(req.params.id as string);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     const mode = (req.query.mode as any) || 'beginner';
     const script = await openAIService.generateCallScript(lead, mode);

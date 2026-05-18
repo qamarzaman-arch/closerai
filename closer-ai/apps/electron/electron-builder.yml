@@ -1,0 +1,15 @@
+appId: com.closerai.app
+productName: CloserAI
+directories:
+  output: dist/build
+  buildResources: build
+files:
+  - dist/main/**/*
+  - dist/renderer/**/*
+  - package.json
+win:
+  target: nsis
+  icon: public/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

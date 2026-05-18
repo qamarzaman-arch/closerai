@@ -1,15 +1,15 @@
 services:
-  postgres:
-    image: mirror.gcr.io/library/postgres:alpine
-    restart: always
-    environment:
-      POSTGRES_USER: closeruser
-      POSTGRES_PASSWORD: closerpassword
-      POSTGRES_DB: closerai
+  backend:
+    build: ./apps/server
     ports:
-      - "5432:5432"
+      - "3001:3001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./apps/server/prisma:/app/prisma
 
-volumes:
-  postgres_data:
+  # Frontend is usually a native desktop build, but for testing/web version:
+  frontend:
+    build: ./apps/electron
+    ports:
+      - "5173:5173"

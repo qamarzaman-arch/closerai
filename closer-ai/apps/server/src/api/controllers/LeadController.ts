@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { LeadRepository } from '../repositories/LeadRepository';
-import { LeadSchema } from '../utils/schemas';
-import logger from '../utils/logger';
+import { LeadRepository } from '../../domain/repositories/LeadRepository';
+import { LeadSchema } from '../../infrastructure/utils/schemas';
+import logger from '../../infrastructure/utils/logger';
 
 const leadRepository = new LeadRepository();
 

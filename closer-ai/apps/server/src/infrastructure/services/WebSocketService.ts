@@ -73,6 +73,8 @@ export class WebSocketService {
               case 'END_CALL':
                 if (currentSessionId) {
                   const insight = reIntelligence.analyzeConversation(contextManager.getContextString());
+                  const sessionData = await prisma.callSession.findUnique({ where: { id: currentSessionId } });
+
                   await prisma.callSession.update({
                     where: { id: currentSessionId },
                     data: {
@@ -85,13 +87,15 @@ export class WebSocketService {
                     }
                   });
 
-                  await prisma.lead.update({
-                      where: { id: (await prisma.callSession.findUnique({ where: { id: currentSessionId } }))?.leadId },
-                      data: {
-                          motivation_tags: insight.motivation.join(','),
-                          deal_score: insight.dealProbability * 100
-                      }
-                  });
+                  if (sessionData) {
+                      await prisma.lead.update({
+                          where: { id: sessionData.leadId },
+                          data: {
+                              motivation_tags: insight.motivation.join(','),
+                              deal_score: insight.dealProbability * 100
+                          }
+                      });
+                  }
 
                   await prisma.transcript.create({
                     data: {
@@ -100,6 +104,7 @@ export class WebSocketService {
                       jsonContent: JSON.stringify([])
                     }
                   });
+                  logger.info('Call ended', { sessionId: currentSessionId });
                 }
                 ws.send(JSON.stringify({ type: 'CALL_ENDED' }));
                 currentSessionId = null;
@@ -108,6 +113,10 @@ export class WebSocketService {
         } catch (error: any) {
             logger.error('WS Message error', { error: error.message });
         }
+      });
+
+      ws.on('close', () => {
+        logger.info('WebSocket connection closed');
       });
     });
   }

@@ -1,43 +1,37 @@
-# CloserAI - Realtime Sales Copilot
+# CloserAI - Enterprise Real Estate Sales Copilot
 
-CloserAI is a production-grade AI-powered desktop application for real estate cold callers.
+CloserAI is a production-ready, AI-powered desktop application designed for real estate cold callers, specifically optimized for non-native English speakers.
 
-## Features
-- **Realtime Audio Pipeline**: Low-latency PCM audio streaming via Web Audio API.
-- **AI Transcription**: Integrated with OpenAI Whisper for live conversation text.
-- **Conversation Engine**: Intelligent context management, objection classification, and suggestion throttling.
-- **Confidence Mode**: Tailored suggestions for Beginner, Intermediate, and Advanced speakers.
-- **Lead Management**: Full CRUD with Prisma and SQLite.
-- **Dashboard**: Live performance metrics and analytics.
+## Core Architecture
+- **Backend**: Node.js/Express with a modular layered architecture (API/Domain/Infrastructure).
+- **Frontend**: Electron/React/Tailwind with secure IPC and context isolation.
+- **Intelligence**: Real-time seller motivation detection, personality-aware strategy engine, and multi-style objection handling.
+- **Audio**: Low-latency PCM streaming with OpenAI Whisper integration.
+- **Database**: Prisma ORM with optimized SQLite/Postgres support.
 
-## Tech Stack
-- **Frontend**: Electron, React, TypeScript, TailwindCSS, Zustand.
-- **Backend**: Node.js, Express, WebSocket (ws), Winston, Zod.
-- **Database**: Prisma ORM, SQLite.
-- **AI**: OpenAI (GPT-4o, Whisper).
+## Security & Hardening
+- **Electron**: Context Isolation, Sandbox mode, and secure Preload scripts enabled.
+- **Data**: Zod schema validation and structured Winston logging.
+- **Resilience**: Global Error Boundaries and automatic WebSocket reconnection.
 
-## Setup
-1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   cd apps/server && npm install
-   cd ../electron && npm install
-   ```
-3. Set environment variables in `apps/server/.env`:
-   ```
-   OPENAI_API_KEY=your_key_here
-   PORT=3001
-   ```
-4. Setup database:
-   ```bash
-   cd apps/server && npx prisma db push
-   ```
-5. Run the application:
-   - Start Backend: `cd apps/server && npm run dev`
-   - Start Frontend: `cd apps/electron && npm run start`
+## Production Setup
+### Standard Build
+1. Install dependencies: `npm install` in both `apps/server` and `apps/electron`.
+2. Configure `.env`: Set `OPENAI_API_KEY`.
+3. Build & Run:
+   - Backend: `cd apps/server && npm run build && npm start`
+   - Desktop: `cd apps/electron && npm run build && npm run electron`
 
-## Testing
-Run unit tests in the server:
+### Docker Build
 ```bash
-cd apps/server && npx jest
+docker-compose up --build
 ```
+
+## Build for Windows
+```bash
+cd apps/electron && npm run build
+```
+Output will be in `apps/electron/dist/build`.
+
+## License
+Enterprise Proprietary

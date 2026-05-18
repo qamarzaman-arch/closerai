@@ -7,15 +7,14 @@ export class LeadRepository {
     return prisma.lead.create({ data });
   }
 
-  async findAll(filter: any = {}): Promise<Lead[]> {
-    const { search, call_status } = filter;
+  async findAll(filter: { search?: string, call_status?: string, skip?: number, take?: number } = {}): Promise<Lead[]> {
+    const { search, call_status, skip = 0, take = 50 } = filter;
     let where: any = {};
 
     if (search) {
       where.OR = [
         { full_name: { contains: search } },
         { phone_number: { contains: search } },
-        { email: { contains: search } },
         { property_address: { contains: search } },
       ];
     }
@@ -26,12 +25,14 @@ export class LeadRepository {
 
     return prisma.lead.findMany({
       where,
+      skip,
+      take,
       include: {
         noteHistory: true,
         sessions: {
+          take: 5, // Only load last 5 sessions for performance
+          orderBy: { startTime: 'desc' },
           include: {
-            transcript: true,
-            suggestions: true,
             objections: true
           }
         }

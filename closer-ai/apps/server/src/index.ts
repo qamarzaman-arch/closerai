@@ -2,10 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
-import leadRoutes from './routes/leadRoutes';
-import { WebSocketService } from './services/WebSocketService';
-import { globalErrorHandler } from './utils/errorHandler';
-import logger from './utils/logger';
+import leadRoutes from './api/routes/leadRoutes';
+import { WebSocketService } from './infrastructure/services/WebSocketService';
+import { globalErrorHandler } from './infrastructure/utils/errorHandler';
+import logger from './infrastructure/utils/logger';
 
 dotenv.config();
 

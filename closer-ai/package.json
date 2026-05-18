@@ -1,13 +1,16 @@
 {
   "name": "closer-ai",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Enterprise AI Sales Copilot for Real Estate",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "install:all": "npm install && cd apps/server && npm install && cd ../electron && npm install",
+    "dev:server": "cd apps/server && npm run dev",
+    "dev:electron": "cd apps/electron && npm run dev",
+    "build:all": "cd apps/server && npm run build && cd ../electron && npm run build",
+    "start": "concurrently \"npm run dev:server\" \"npm run dev:electron\"",
+    "test": "cd apps/server && npm run test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }

@@ -102,8 +102,7 @@ export class OpenAIService {
               { role: 'user', content: `Recent Transcript:\n${context}` }
           ],
           response_format: { type: 'json_object' },
-          timeout: 3000,
-        });
+        }, { timeout: 3000 });
 
         return JSON.parse(response.choices[0].message.content || '{}');
     } catch (e: any) {
