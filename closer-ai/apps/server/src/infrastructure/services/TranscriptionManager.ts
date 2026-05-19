@@ -4,12 +4,38 @@ import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 
+// Whisper hallucinates these phrases on silence — discard them
+const WHISPER_HALLUCINATIONS = new Set([
+  'thank you', 'thanks', 'thank you.', 'thanks.', 'thank you!',
+  'you', 'you.', 'bye', 'bye.', 'goodbye', 'goodbye.',
+  'thanks for watching', 'thanks for watching.', 'thank you for watching.',
+  'please subscribe', 'like and subscribe',
+  'uh', 'um', 'hmm', '...', '. . .', 'silence',
+  'subtitles by', 'transcribed by', '[music]', '[applause]',
+]);
+
+function isHallucination(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[^\w\s]/g, '').trim();
+  return WHISPER_HALLUCINATIONS.has(t) || WHISPER_HALLUCINATIONS.has(text.trim().toLowerCase());
+}
+
+// RMS energy of 16-bit PCM buffer — returns 0.0–1.0
+function rmsEnergy(buf: Buffer): number {
+  let sum = 0;
+  for (let i = 0; i < buf.length - 1; i += 2) {
+    const sample = buf.readInt16LE(i);
+    sum += sample * sample;
+  }
+  return Math.sqrt(sum / (buf.length / 2)) / 32768;
+}
+
 export class TranscriptionManager extends EventEmitter {
   private openai: OpenAI;
   private audioBuffer: Buffer[] = [];
   private isProcessing = false;
   private readonly CHUNK_THRESHOLD = 16000 * 2 * 2; // 2 seconds of 16kHz 16-bit mono
   private readonly model: string;
+  private readonly SILENCE_THRESHOLD = 0.01; // RMS below this = silence, skip
 
   constructor(apiKey: string, baseURL?: string, model?: string) {
     super();
@@ -35,6 +61,11 @@ export class TranscriptionManager extends EventEmitter {
       // Keep a small overlap for better transcription continuity
       this.audioBuffer = [bufferToProcess.slice(-4096)];
 
+      // Skip silent chunks — prevents Whisper hallucinations on silence
+      if (rmsEnergy(bufferToProcess) < this.SILENCE_THRESHOLD) {
+        return;
+      }
+
       // Simple WAV header for 16kHz 16-bit Mono
       const wavHeader = Buffer.alloc(44);
       wavHeader.write('RIFF', 0);
@@ -59,8 +90,11 @@ export class TranscriptionManager extends EventEmitter {
         language: 'en',
       });
 
-      if (transcription.text.trim()) {
-        this.emit('transcription', transcription.text);
+      const text = transcription.text.trim();
+      if (text && !isHallucination(text)) {
+        this.emit('transcription', text);
+      } else if (text) {
+        logger.debug('Whisper hallucination filtered', { text });
       }
     } catch (error: any) {
       logger.error('Transcription error', { error: error.message });
