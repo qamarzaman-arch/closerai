@@ -195,12 +195,17 @@ Return JSON with:
     const ai = getOpenAI();
     const fallback = {
       title: 'AI Research — ' + lead.full_name,
-      content: [
-        lead.notes ? `Notes: ${lead.notes}` : '',
-        lead.seller_motivation ? `Motivation: ${lead.seller_motivation}` : '',
-        lead.linkedin_url ? `LinkedIn: ${lead.linkedin_url}` : '',
-        lead.website_url ? `Website: ${lead.website_url}` : '',
-      ].filter(Boolean).join('\n') || 'No profile data provided.',
+      content: JSON.stringify({
+        personality_profile: 'AI not configured — add OPENAI_API_KEY to enable research.',
+        likely_motivations: [lead.seller_motivation || 'Unknown'].filter(Boolean),
+        pain_points: [],
+        talking_points: [],
+        personalized_opener: `Hi ${lead.full_name}, I\'m calling about ${lead.property_address || 'your property'}.`,
+        rapport_hooks: lead.notes ? [lead.notes] : [],
+        expected_objections: [],
+        approach_recommendation: 'No AI configured.',
+        red_flags: [],
+      }),
     };
     if (!ai) return fallback;
 
@@ -242,26 +247,8 @@ Return JSON:
       }, { timeout: 15000 });
 
       const data = JSON.parse(res.choices[0].message.content || '{}');
-      const lines = [
-        `PERSONALITY: ${data.personality_profile || ''}`,
-        '',
-        `MOTIVATIONS:\n${(data.likely_motivations || []).map((m: string) => `• ${m}`).join('\n')}`,
-        '',
-        `PAIN POINTS:\n${(data.pain_points || []).map((p: string) => `• ${p}`).join('\n')}`,
-        '',
-        `TALKING POINTS:\n${(data.talking_points || []).map((t: string) => `• ${t}`).join('\n')}`,
-        '',
-        `PERSONALIZED OPENER: "${data.personalized_opener || ''}"`,
-        '',
-        `RAPPORT HOOKS:\n${(data.rapport_hooks || []).map((r: string) => `• ${r}`).join('\n')}`,
-        '',
-        `EXPECTED OBJECTIONS:\n${(data.expected_objections || []).map((o: string) => `• ${o}`).join('\n')}`,
-        '',
-        `STRATEGY: ${data.approach_recommendation || ''}`,
-        data.red_flags?.length ? `\nRED FLAGS:\n${data.red_flags.map((f: string) => `⚠ ${f}`).join('\n')}` : '',
-      ].filter(line => line !== null).join('\n');
-
-      return { title: `AI Research — ${lead.full_name}`, content: lines };
+      // Store raw JSON so the frontend modal can render structured sections
+      return { title: `AI Research — ${lead.full_name}`, content: JSON.stringify(data) };
     } catch (e: any) {
       logger.error('Lead profile analysis failed', { error: e.message });
       return fallback;

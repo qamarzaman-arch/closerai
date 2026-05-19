@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAppStore } from '../../store/useAppStore';
 import { API_BASE } from '../../config/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { Brain, Calendar, Download, ExternalLink, Globe, Edit3, FileText, Phone, Plus, Save, Search, StickyNote, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { AlertTriangle, Brain, Calendar, CheckCircle, ChevronRight, Copy, Download, ExternalLink, Globe, Edit3, FileText, Lightbulb, Link, Loader2, MessageSquare, Phone, Plus, RefreshCw, Save, Search, ShieldAlert, StickyNote, Target, Trash2, TrendingUp, Upload, User, X, Zap } from 'lucide-react';
 
 type LeadForm = {
   full_name: string;
@@ -55,7 +55,10 @@ const LeadsView: React.FC = () => {
   const [resourceForm, setResourceForm] = useState({ type: 'NOTE', title: '', url: '', content: '' });
   const [script, setScript] = useState<any | null>(null);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
-  const [isResearching, setIsResearching] = useState(false);
+  // research: Map<leadId, leadName> for background tracking
+  const [researchingLeads, setResearchingLeads] = useState<Map<string, string>>(new Map());
+  const [showResearchModal, setShowResearchModal] = useState(false);
+  const [researchModalData, setResearchModalData] = useState<{ lead: any; resource: any } | null>(null);
 
   const loadLeads = async () => {
     try {
@@ -221,17 +224,32 @@ const LeadsView: React.FC = () => {
     }
   };
 
-  const handleResearch = async () => {
-    if (!selectedLead || isResearching) return;
-    setIsResearching(true);
-    try {
-      await axios.post(`${API_BASE}/api/leads/${selectedLead.id}/research`);
-      await loadLeadDetails(selectedLead.id);
-      setSuccessMessage(`AI research generated for ${selectedLead.full_name}. Check the Research Context section.`);
-    } catch (error: any) {
-      setLoadError(error.response?.data?.error || 'AI research failed.');
-    } finally {
-      setIsResearching(false);
+  const handleResearch = (lead: any) => {
+    if (!lead || researchingLeads.has(lead.id)) return;
+    // Add to background tracking — non-blocking, user can navigate away
+    setResearchingLeads(prev => new Map(prev).set(lead.id, lead.full_name));
+    axios.post(`${API_BASE}/api/leads/${lead.id}/research`)
+      .then(async () => {
+        const res = await axios.get(`${API_BASE}/api/leads/${lead.id}`);
+        const updatedLead = res.data;
+        // If this lead is still selected, refresh it
+        if (selectedLeadId === lead.id) setSelectedLead(updatedLead);
+        // Auto-open modal with result
+        const aiResource = updatedLead.resources?.find((r: any) => r.type === 'AI_RESEARCH');
+        if (aiResource) {
+          setResearchModalData({ lead: updatedLead, resource: aiResource });
+          setShowResearchModal(true);
+        }
+      })
+      .catch(() => setLoadError(`AI research failed for ${lead.full_name}.`))
+      .finally(() => setResearchingLeads(prev => { const m = new Map(prev); m.delete(lead.id); return m; }));
+  };
+
+  const openResearchModal = (lead: any) => {
+    const aiResource = lead.resources?.find((r: any) => r.type === 'AI_RESEARCH');
+    if (aiResource) {
+      setResearchModalData({ lead, resource: aiResource });
+      setShowResearchModal(true);
     }
   };
 
@@ -348,7 +366,46 @@ const LeadsView: React.FC = () => {
   };
 
   return (
-    <div className="h-full overflow-hidden grid grid-cols-[minmax(420px,1fr)_420px]">
+    <div className="h-full overflow-hidden grid grid-cols-[minmax(420px,1fr)_420px] relative">
+
+      {/* ── Background research toast ── */}
+      {researchingLeads.size > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 space-y-2">
+          {Array.from(researchingLeads.entries()).map(([id, name]) => (
+            <div key={id} className="flex items-center gap-3 bg-gray-800 border border-purple-500/40 rounded-2xl px-4 py-3 shadow-2xl shadow-black/40">
+              <Loader2 size={14} className="text-purple-400 animate-spin shrink-0" />
+              <div>
+                <p className="text-xs font-black text-white">Researching {name}</p>
+                <p className="text-[10px] text-gray-500">Running in background — will auto-open when ready</p>
+              </div>
+              <button
+                onClick={() => setResearchingLeads(prev => { const m = new Map(prev); m.delete(id); return m; })}
+                className="text-gray-600 hover:text-gray-400 ml-1"
+                title="Hide (research still runs)"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── AI Research full-page modal ── */}
+      {showResearchModal && researchModalData && (
+        <ResearchModal
+          lead={researchModalData.lead}
+          resource={researchModalData.resource}
+          onClose={() => setShowResearchModal(false)}
+          onRegenerate={() => {
+            setShowResearchModal(false);
+            handleResearch(researchModalData.lead);
+          }}
+          onDelete={async () => {
+            await handleDeleteResource(researchModalData.resource.id);
+            setShowResearchModal(false);
+          }}
+        />
+      )}
       <div className="p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-black tracking-tighter text-white">Prospects</h2>
@@ -425,9 +482,9 @@ const LeadsView: React.FC = () => {
               <ActionButton icon={<Edit3 size={15} />} label="Edit" onClick={openEditForm} />
               <ActionButton icon={<FileText size={15} />} label={isGeneratingScript ? 'Working...' : 'Call Script'} onClick={handleGenerateScript} />
               <ActionButton
-                icon={<Brain size={15} />}
-                label={isResearching ? 'Researching...' : 'AI Research'}
-                onClick={handleResearch}
+                icon={researchingLeads.has(selectedLead.id) ? <Loader2 size={15} className="animate-spin" /> : <Brain size={15} />}
+                label={researchingLeads.has(selectedLead.id) ? 'Running...' : 'AI Research'}
+                onClick={() => handleResearch(selectedLead)}
                 highlight
               />
               <ActionButton icon={<Trash2 size={15} />} label="Delete" onClick={handleDeleteLead} danger />
@@ -475,26 +532,41 @@ const LeadsView: React.FC = () => {
 
             <div className="bg-gray-900/50 border border-gray-700/50 rounded-2xl p-4">
               <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Globe size={14} /> AI Research Context</h4>
-              <div className="space-y-3 mb-4">
-                {(selectedLead.resources || []).map((resource: any) => {
-                  const isAI = resource.type === 'AI_RESEARCH';
-                  return (
-                    <div key={resource.id} className={`border rounded-xl p-3 ${isAI ? 'border-purple-500/40 bg-purple-900/10' : 'border-gray-700/50 bg-gray-800/40'}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex items-center gap-2">
-                          {isAI && <Brain size={13} className="text-purple-400 shrink-0" />}
-                          <div>
-                            <p className={`text-[10px] font-black uppercase ${isAI ? 'text-purple-400' : 'text-blue-400'}`}>{resource.type.replace('_', ' ')}</p>
-                            <p className="text-sm font-black text-white truncate">{resource.title}</p>
-                          </div>
-                        </div>
-                        <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
+              {/* AI_RESEARCH card — click to open full modal */}
+              {(selectedLead.resources || []).filter((r: any) => r.type === 'AI_RESEARCH').map((resource: any) => (
+                <div key={resource.id} className="border border-purple-500/40 bg-purple-900/10 rounded-xl p-4 mb-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Brain size={14} className="text-purple-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase text-purple-400">AI Research Ready</p>
+                        <p className="text-sm font-black text-white truncate">{resource.title}</p>
                       </div>
-                      {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-2 truncate"><ExternalLink size={12} /> {resource.url}</a>}
-                      <p className="text-sm text-gray-300 mt-2 whitespace-pre-wrap">{resource.content}</p>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => openResearchModal(selectedLead)} className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-black uppercase">
+                        View <ChevronRight size={11} />
+                      </button>
+                      <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="space-y-3 mb-4">
+                {(selectedLead.resources || []).filter((r: any) => r.type !== 'AI_RESEARCH').map((resource: any) => (
+                  <div key={resource.id} className="border border-gray-700/50 bg-gray-800/40 rounded-xl p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase text-blue-400">{resource.type.replace('_', ' ')}</p>
+                        <p className="text-sm font-black text-white truncate">{resource.title}</p>
+                      </div>
+                      <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
+                    </div>
+                    {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-2 truncate"><ExternalLink size={12} /> {resource.url}</a>}
+                    <p className="text-sm text-gray-300 mt-2 whitespace-pre-wrap">{resource.content}</p>
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select value={resourceForm.type} onChange={(e) => setResourceForm({ ...resourceForm, type: e.target.value })} className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-white">
@@ -587,5 +659,166 @@ const ActionButton = ({ icon, label, onClick, danger = false, highlight = false 
     {icon} {label}
   </button>
 );
+
+// ── AI Research full-page modal ──────────────────────────────────────────────
+
+const ResearchModal = ({ lead, resource, onClose, onRegenerate, onDelete }: any) => {
+  const [copied, setCopied] = useState(false);
+
+  const data = (() => {
+    try { return JSON.parse(resource.content); }
+    catch { return null; }
+  })();
+
+  const copyOpener = () => {
+    if (!data?.personalized_opener) return;
+    navigator.clipboard.writeText(data.personalized_opener);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
+      <div className="w-full max-w-4xl max-h-[90vh] bg-[#0f1623] border border-purple-500/30 rounded-3xl shadow-2xl shadow-purple-950/50 flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-gray-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-purple-600/20 rounded-xl border border-purple-500/30">
+              <Brain size={18} className="text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-white">AI Research Profile</h2>
+              <p className="text-xs text-gray-500 font-bold">{lead.full_name} · {lead.property_address || 'No property'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onRegenerate} className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-purple-700 text-gray-400 hover:text-white rounded-xl text-xs font-black uppercase transition-all">
+              <RefreshCw size={13} /> Regenerate
+            </button>
+            <button onClick={onDelete} className="p-2 text-gray-600 hover:text-red-400 rounded-xl hover:bg-red-400/10 transition-all">
+              <Trash2 size={15} />
+            </button>
+            <button onClick={onClose} className="p-2 text-gray-600 hover:text-white rounded-xl hover:bg-gray-800 transition-all">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+
+          {!data ? (
+            <p className="text-sm text-gray-400 whitespace-pre-wrap">{resource.content}</p>
+          ) : (
+            <>
+              {/* Personalized Opener — hero card */}
+              <div className="bg-purple-900/20 border border-purple-500/40 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black uppercase text-purple-400 flex items-center gap-1.5">
+                    <MessageSquare size={11} /> Personalized Opener — Say This First
+                  </p>
+                  <button onClick={copyOpener} className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${copied ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+                    <Copy size={11} /> {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p className="text-base font-black text-white leading-relaxed">"{data.personalized_opener}"</p>
+              </div>
+
+              {/* 3-col grid: personality + motivations + approach */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-500 mb-2 flex items-center gap-1.5"><User size={11} /> Personality</p>
+                  <p className="text-sm text-white font-semibold leading-relaxed">{data.personality_profile}</p>
+                </div>
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-500 mb-3 flex items-center gap-1.5"><Target size={11} /> Motivations</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(data.likely_motivations || []).map((m: string, i: number) => (
+                      <span key={i} className="px-2 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-lg text-[10px] font-bold">{m}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-blue-400 mb-2 flex items-center gap-1.5"><Zap size={11} /> Strategy</p>
+                  <p className="text-sm text-white font-semibold leading-relaxed">{data.approach_recommendation}</p>
+                </div>
+              </div>
+
+              {/* Pain points + talking points */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-red-400 mb-3 flex items-center gap-1.5"><AlertTriangle size={11} /> Pain Points</p>
+                  <ul className="space-y-2">
+                    {(data.pain_points || []).map((p: string, i: number) => (
+                      <li key={i} className="flex gap-2 text-sm text-gray-300">
+                        <span className="text-red-400 shrink-0 mt-0.5">•</span> {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-green-400 mb-3 flex items-center gap-1.5"><Lightbulb size={11} /> Talking Points</p>
+                  <ul className="space-y-2">
+                    {(data.talking_points || []).map((t: string, i: number) => (
+                      <li key={i} className="flex gap-2 text-sm text-gray-300">
+                        <span className="text-green-400 font-black shrink-0">{i + 1}.</span> {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Rapport hooks + expected objections */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-yellow-400 mb-3 flex items-center gap-1.5"><CheckCircle size={11} /> Rapport Hooks</p>
+                  <ul className="space-y-2">
+                    {(data.rapport_hooks || []).map((r: string, i: number) => (
+                      <li key={i} className="flex gap-2 text-sm text-gray-300">
+                        <span className="text-yellow-400 shrink-0 mt-0.5">→</span> {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-gray-900/60 border border-gray-700/50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-orange-400 mb-3 flex items-center gap-1.5"><ShieldAlert size={11} /> Expected Objections</p>
+                  <ul className="space-y-2">
+                    {(data.expected_objections || []).map((o: string, i: number) => (
+                      <li key={i} className="flex gap-2 text-sm text-gray-300">
+                        <span className="text-orange-400 shrink-0 mt-0.5">!</span> {o}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Red flags */}
+              {(data.red_flags || []).length > 0 && (
+                <div className="bg-red-900/10 border border-red-500/30 rounded-2xl p-4">
+                  <p className="text-[10px] font-black uppercase text-red-400 mb-3 flex items-center gap-1.5"><AlertTriangle size={11} /> Red Flags</p>
+                  <ul className="space-y-2">
+                    {data.red_flags.map((f: string, i: number) => (
+                      <li key={i} className="flex gap-2 text-sm text-red-300">
+                        <span className="shrink-0">⚠</span> {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-4 border-t border-gray-800 flex justify-end shrink-0">
+          <button onClick={onClose} className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl text-sm font-black uppercase">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default LeadsView;
