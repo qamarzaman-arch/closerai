@@ -31,15 +31,22 @@ export class WebSocketService {
       let clientTranscriptionManager: TranscriptionManager | null = null;
 
       const makeTranscriber = (speaker: 'Caller' | 'Client') => {
+          // Groq key takes priority — free Whisper-compatible endpoint
+          const groqKey = process.env.GROQ_API_KEY;
           const whisperKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY;
-          // OpenRouter keys (sk-or-*) don't support audio/transcriptions — skip silently
-          if (!whisperKey || whisperKey.startsWith('sk-or-')) {
+
+          let mgr: TranscriptionManager | null = null;
+          if (groqKey) {
+              mgr = new TranscriptionManager(groqKey, 'https://api.groq.com/openai/v1', 'whisper-large-v3-turbo');
+          } else if (whisperKey && !whisperKey.startsWith('sk-or-')) {
+              mgr = new TranscriptionManager(whisperKey);
+          } else {
               if (whisperKey?.startsWith('sk-or-')) {
-                  logger.warn('Whisper transcription disabled: OPENAI_API_KEY is an OpenRouter key. Set WHISPER_API_KEY to a real OpenAI key to enable live transcription.');
+                  logger.warn('Whisper disabled: set GROQ_API_KEY (free) or WHISPER_API_KEY (real OpenAI key) to enable live transcription.');
               }
               return null;
           }
-          const mgr = new TranscriptionManager(whisperKey);
+
           mgr.on('transcription', async (text: string) => {
               if (currentSessionId) {
                   const mode = speaker === 'Caller' ? 'beginner' : undefined;

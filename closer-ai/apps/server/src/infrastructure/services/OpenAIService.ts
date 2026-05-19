@@ -191,6 +191,83 @@ Return JSON with:
     }
   }
 
+  async analyzeLeadProfile(lead: any): Promise<{ title: string; content: string }> {
+    const ai = getOpenAI();
+    const fallback = {
+      title: 'AI Research — ' + lead.full_name,
+      content: [
+        lead.notes ? `Notes: ${lead.notes}` : '',
+        lead.seller_motivation ? `Motivation: ${lead.seller_motivation}` : '',
+        lead.linkedin_url ? `LinkedIn: ${lead.linkedin_url}` : '',
+        lead.website_url ? `Website: ${lead.website_url}` : '',
+      ].filter(Boolean).join('\n') || 'No profile data provided.',
+    };
+    if (!ai) return fallback;
+
+    try {
+      const prompt = `You are a real estate acquisition specialist preparing for a cold call.
+Analyze this lead profile and create a detailed, actionable research document.
+
+LEAD PROFILE:
+- Name: ${lead.full_name}
+- Property: ${lead.property_address || 'Unknown'}
+- Property Type: ${lead.property_type || 'Unknown'}
+- Estimated Value: ${lead.estimated_value ? '$' + lead.estimated_value.toLocaleString() : 'Unknown'}
+- Seller Motivation (self-reported): ${lead.seller_motivation || 'Unknown'}
+- LinkedIn URL: ${lead.linkedin_url || 'Not provided'}
+- Website URL: ${lead.website_url || 'Not provided'}
+- Notes / Background: ${lead.notes || 'None'}
+- Current Tags: ${lead.motivation_tags || 'None'}
+
+Based on this profile, create a comprehensive research document. Infer what you can from the name, property location, URLs, and notes. If LinkedIn/website URLs are provided, infer what you can from the domain/path even without scraping.
+
+Return JSON:
+{
+  "personality_profile": "2-3 sentences on likely personality and communication style",
+  "likely_motivations": ["motivation 1", "motivation 2", "motivation 3"],
+  "pain_points": ["specific pain point 1", "pain point 2", "pain point 3"],
+  "talking_points": ["personalized talking point referencing their situation", "..."],
+  "personalized_opener": "exact verbatim first sentence to say that references something specific about them",
+  "rapport_hooks": ["personal detail or context to build rapport", "..."],
+  "expected_objections": ["likely objection 1 and how to counter", "..."],
+  "approach_recommendation": "1-2 sentences: best overall strategy for this specific person",
+  "red_flags": ["anything to watch out for if any"]
+}`;
+
+      const res = await ai.chat.completions.create({
+        model: getModel(),
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+      }, { timeout: 15000 });
+
+      const data = JSON.parse(res.choices[0].message.content || '{}');
+      const lines = [
+        `PERSONALITY: ${data.personality_profile || ''}`,
+        '',
+        `MOTIVATIONS:\n${(data.likely_motivations || []).map((m: string) => `• ${m}`).join('\n')}`,
+        '',
+        `PAIN POINTS:\n${(data.pain_points || []).map((p: string) => `• ${p}`).join('\n')}`,
+        '',
+        `TALKING POINTS:\n${(data.talking_points || []).map((t: string) => `• ${t}`).join('\n')}`,
+        '',
+        `PERSONALIZED OPENER: "${data.personalized_opener || ''}"`,
+        '',
+        `RAPPORT HOOKS:\n${(data.rapport_hooks || []).map((r: string) => `• ${r}`).join('\n')}`,
+        '',
+        `EXPECTED OBJECTIONS:\n${(data.expected_objections || []).map((o: string) => `• ${o}`).join('\n')}`,
+        '',
+        `STRATEGY: ${data.approach_recommendation || ''}`,
+        data.red_flags?.length ? `\nRED FLAGS:\n${data.red_flags.map((f: string) => `⚠ ${f}`).join('\n')}` : '',
+      ].filter(line => line !== null).join('\n');
+
+      return { title: `AI Research — ${lead.full_name}`, content: lines };
+    } catch (e: any) {
+      logger.error('Lead profile analysis failed', { error: e.message });
+      return fallback;
+    }
+  }
+
   private getFallbackScript(lead: any) {
       return {
         opening: `Hi, is this ${lead.full_name}? I\'m calling about ${lead.property_address || 'your house'}.`,

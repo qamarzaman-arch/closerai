@@ -19,7 +19,7 @@ export const LeadSchema = z.object({
 export const LeadUpdateSchema = LeadSchema.partial();
 
 export const LeadResourceSchema = z.object({
-  type: z.enum(['NOTE', 'LINKEDIN', 'WEBSITE', 'PROFILE', 'OTHER']).default('NOTE'),
+  type: z.enum(['NOTE', 'LINKEDIN', 'WEBSITE', 'PROFILE', 'AI_RESEARCH', 'OTHER']).default('NOTE'),
   title: z.string().min(1),
   url: z.string().url().optional().nullable().or(z.literal('')),
   content: z.string().min(1),

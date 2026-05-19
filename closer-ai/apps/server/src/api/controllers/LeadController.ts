@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import { LeadRepository } from '../../domain/repositories/LeadRepository';
 import { LeadImportSchema, LeadResourceSchema, LeadSchema, LeadUpdateSchema } from '../../infrastructure/utils/schemas';
 import logger from '../../infrastructure/utils/logger';
+import { OpenAIService } from '../../infrastructure/services/OpenAIService';
 
 const leadRepository = new LeadRepository();
+const openAIService = new OpenAIService();
 
 export class LeadController {
   async createLead(req: Request, res: Response) {
@@ -109,6 +111,34 @@ export class LeadController {
       res.status(204).send();
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  }
+
+  async researchLead(req: Request, res: Response) {
+    try {
+      const lead = await leadRepository.findById(req.params.id as string);
+      if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+      const research = await openAIService.analyzeLeadProfile(lead);
+
+      // Remove any previous AI research resource to avoid duplicates
+      const existing = (lead as any).resources?.find((r: any) => r.type === 'AI_RESEARCH');
+      if (existing) {
+        await leadRepository.deleteResource(req.params.id as string, existing.id);
+      }
+
+      const resource = await leadRepository.addResource(req.params.id as string, {
+        type: 'AI_RESEARCH',
+        title: research.title,
+        url: null,
+        content: research.content,
+      });
+
+      logger.info('Lead research generated', { leadId: req.params.id });
+      res.status(201).json(resource);
+    } catch (error: any) {
+      logger.error('Research lead failed', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 }

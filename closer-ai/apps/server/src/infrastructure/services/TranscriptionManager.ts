@@ -9,15 +9,12 @@ export class TranscriptionManager extends EventEmitter {
   private audioBuffer: Buffer[] = [];
   private isProcessing = false;
   private readonly CHUNK_THRESHOLD = 16000 * 2 * 2; // 2 seconds of 16kHz 16-bit mono
+  private readonly model: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, baseURL?: string, model?: string) {
     super();
-    // Whisper is only available on api.openai.com — explicitly override baseURL
-    // so the env var OPENAI_BASE_URL (which may point to OpenRouter) is ignored.
-    this.openai = new OpenAI({
-      apiKey,
-      baseURL: process.env.WHISPER_BASE_URL || 'https://api.openai.com/v1',
-    });
+    this.model = model || 'whisper-1';
+    this.openai = new OpenAI({ apiKey, baseURL: baseURL || 'https://api.openai.com/v1' });
   }
 
   async addAudioChunk(base64Chunk: string) {
@@ -58,7 +55,7 @@ export class TranscriptionManager extends EventEmitter {
 
       const transcription = await this.openai.audio.transcriptions.create({
         file: fs.createReadStream(tempFile),
-        model: 'whisper-1',
+        model: this.model,
         language: 'en',
       });
 

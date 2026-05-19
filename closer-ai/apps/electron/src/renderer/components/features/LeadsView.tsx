@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAppStore } from '../../store/useAppStore';
 import { API_BASE } from '../../config/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { Calendar, Download, ExternalLink, Globe, Link, Edit3, FileText, Phone, Plus, Save, Search, StickyNote, Trash2, TrendingUp, Upload, X } from 'lucide-react';
+import { Brain, Calendar, Download, ExternalLink, Globe, Edit3, FileText, Phone, Plus, Save, Search, StickyNote, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 
 type LeadForm = {
   full_name: string;
@@ -55,6 +55,7 @@ const LeadsView: React.FC = () => {
   const [resourceForm, setResourceForm] = useState({ type: 'NOTE', title: '', url: '', content: '' });
   const [script, setScript] = useState<any | null>(null);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
 
   const loadLeads = async () => {
     try {
@@ -217,6 +218,20 @@ const LeadsView: React.FC = () => {
       setScript(response.data);
     } finally {
       setIsGeneratingScript(false);
+    }
+  };
+
+  const handleResearch = async () => {
+    if (!selectedLead || isResearching) return;
+    setIsResearching(true);
+    try {
+      await axios.post(`${API_BASE}/api/leads/${selectedLead.id}/research`);
+      await loadLeadDetails(selectedLead.id);
+      setSuccessMessage(`AI research generated for ${selectedLead.full_name}. Check the Research Context section.`);
+    } catch (error: any) {
+      setLoadError(error.response?.data?.error || 'AI research failed.');
+    } finally {
+      setIsResearching(false);
     }
   };
 
@@ -408,7 +423,13 @@ const LeadsView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <ActionButton icon={<Edit3 size={15} />} label="Edit" onClick={openEditForm} />
-              <ActionButton icon={<FileText size={15} />} label={isGeneratingScript ? 'Working' : 'Call Script'} onClick={handleGenerateScript} />
+              <ActionButton icon={<FileText size={15} />} label={isGeneratingScript ? 'Working...' : 'Call Script'} onClick={handleGenerateScript} />
+              <ActionButton
+                icon={<Brain size={15} />}
+                label={isResearching ? 'Researching...' : 'AI Research'}
+                onClick={handleResearch}
+                highlight
+              />
               <ActionButton icon={<Trash2 size={15} />} label="Delete" onClick={handleDeleteLead} danger />
             </div>
 
@@ -455,19 +476,25 @@ const LeadsView: React.FC = () => {
             <div className="bg-gray-900/50 border border-gray-700/50 rounded-2xl p-4">
               <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Globe size={14} /> AI Research Context</h4>
               <div className="space-y-3 mb-4">
-                {(selectedLead.resources || []).map((resource: any) => (
-                  <div key={resource.id} className="border border-gray-700/50 rounded-xl p-3 bg-gray-800/40">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase text-blue-400">{resource.type}</p>
-                        <p className="text-sm font-black text-white truncate">{resource.title}</p>
+                {(selectedLead.resources || []).map((resource: any) => {
+                  const isAI = resource.type === 'AI_RESEARCH';
+                  return (
+                    <div key={resource.id} className={`border rounded-xl p-3 ${isAI ? 'border-purple-500/40 bg-purple-900/10' : 'border-gray-700/50 bg-gray-800/40'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex items-center gap-2">
+                          {isAI && <Brain size={13} className="text-purple-400 shrink-0" />}
+                          <div>
+                            <p className={`text-[10px] font-black uppercase ${isAI ? 'text-purple-400' : 'text-blue-400'}`}>{resource.type.replace('_', ' ')}</p>
+                            <p className="text-sm font-black text-white truncate">{resource.title}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
                       </div>
-                      <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
+                      {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-2 truncate"><ExternalLink size={12} /> {resource.url}</a>}
+                      <p className="text-sm text-gray-300 mt-2 whitespace-pre-wrap">{resource.content}</p>
                     </div>
-                    {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-2 truncate"><ExternalLink size={12} /> {resource.url}</a>}
-                    <p className="text-sm text-gray-300 mt-2 whitespace-pre-wrap">{resource.content}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select value={resourceForm.type} onChange={(e) => setResourceForm({ ...resourceForm, type: e.target.value })} className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-white">
@@ -551,8 +578,12 @@ const LinkBlock = ({ label, url }: { label: string; url?: string | null }) => (
   </div>
 );
 
-const ActionButton = ({ icon, label, onClick, danger = false }: any) => (
-  <button onClick={onClick} className={`flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase ${danger ? 'bg-red-600/10 text-red-400 hover:bg-red-600 hover:text-white' : 'bg-gray-700 text-white hover:bg-blue-600'}`}>
+const ActionButton = ({ icon, label, onClick, danger = false, highlight = false }: any) => (
+  <button onClick={onClick} className={`flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-black uppercase transition-all ${
+    danger ? 'bg-red-600/10 text-red-400 hover:bg-red-600 hover:text-white'
+    : highlight ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600 hover:text-white'
+    : 'bg-gray-700 text-white hover:bg-blue-600'
+  }`}>
     {icon} {label}
   </button>
 );
