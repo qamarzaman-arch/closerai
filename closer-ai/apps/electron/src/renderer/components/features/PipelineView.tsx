@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { CalendarClock, Phone, RefreshCw, TrendingUp } from 'lucide-react';
+import { API_BASE } from '../../config/api';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
@@ -20,7 +21,7 @@ const PipelineView: React.FC = () => {
   const [message, setMessage] = useState('');
 
   const loadLeads = async () => {
-    const res = await axios.get('http://localhost:3001/api/leads');
+    const res = await axios.get(`${API_BASE}/api/leads`);
     setLeads(res.data);
   };
 
@@ -42,7 +43,7 @@ const PipelineView: React.FC = () => {
         tomorrow.setDate(tomorrow.getDate() + 1);
         payload.follow_up_date = tomorrow.toISOString().slice(0, 10);
       }
-      await axios.put(`http://localhost:3001/api/leads/${lead.id}`, payload);
+      await axios.put(`${API_BASE}/api/leads/${lead.id}`, payload);
       await loadLeads();
       setMessage(`${lead.full_name} moved to ${status.replace('_', ' ')}.`);
     } finally {

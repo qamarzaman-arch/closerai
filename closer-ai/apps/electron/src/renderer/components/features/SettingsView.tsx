@@ -2,27 +2,46 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Bot, CheckCircle, Database, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
 
+import { API_BASE } from '../../config/api';
+
+const API = API_BASE;
+
 const SettingsView: React.FC = () => {
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [dbStatus, setDbStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const [aiStatus, setAiStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [dbProvider, setDbProvider] = useState('Database');
 
   const refresh = async () => {
     setApiStatus('checking');
     setDbStatus('checking');
+    setAiStatus('checking');
+
     try {
-      await axios.get('http://localhost:3001/health');
+      const res = await axios.get(`${API}/health`);
       setApiStatus('ok');
+      if (res.data?.aiConfigured === false) setAiStatus('error');
     } catch {
       setApiStatus('error');
     }
+
     try {
-      await axios.get('http://localhost:3001/health/db');
+      const res = await axios.get(`${API}/health/db`);
       setDbStatus('ok');
+      setDbProvider(res.data?.provider || 'Database');
     } catch {
       setDbStatus('error');
     }
-    axios.get('http://localhost:3001/api/leads/analytics/summary').then(res => setAnalytics(res.data)).catch(() => setAnalytics(null));
+
+    try {
+      const res = await axios.get(`${API}/health/ai`);
+      setAiStatus(res.data?.status === 'ok' ? 'ok' : 'error');
+    } catch {
+      setAiStatus('error');
+    }
+
+    axios.get(`${API}/api/leads/analytics/summary`).then(res => setAnalytics(res.data)).catch(() => setAnalytics(null));
   };
 
   useEffect(() => {
@@ -43,8 +62,8 @@ const SettingsView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <StatusCard icon={<Server />} label="Backend API" status={apiStatus} detail="Express + WebSocket service on port 3001" />
-        <StatusCard icon={<Database />} label="MySQL" status={dbStatus} detail="HeidiSQL local database: closer_ai" />
-        <StatusCard icon={<Bot />} label="OpenRouter" status="ok" detail="OpenAI-compatible provider for script and call coaching" />
+        <StatusCard icon={<Database />} label={dbProvider.toUpperCase()} status={dbStatus} detail="Local database for leads, sessions, and transcripts" />
+        <StatusCard icon={<Bot />} label="OpenRouter / AI" status={aiStatus} detail="OpenAI-compatible provider for script and call coaching" />
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">

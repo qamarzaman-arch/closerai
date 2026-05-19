@@ -81,35 +81,43 @@ export class OpenAIService {
     const ai = getOpenAI();
 
     try {
+        const isSimple = mode === 'beginner';
         const systemPrompt = `
-            You are a Real Estate Sales Copilot for a non-native speaker.
+You are a LIVE real estate sales copilot. User is ON AN ACTIVE CALL right now. Response must be INSTANT and USABLE in under 5 seconds.
 
-            Seller Context:
-            - Personality: ${insight?.personality || 'Unknown'}
-            - Motivation: ${insight?.motivation?.join(', ') || 'Unknown'}
-            - Strategy: ${insight?.strategy || 'Build rapport'}
+SELLER PROFILE:
+- Personality: ${insight?.personality || 'Unknown'}
+- Motivations: ${insight?.motivation?.join(', ') || 'Detecting...'}
+- Deal Probability: ${Math.round((insight?.dealProbability || 0.1) * 100)}%
+- Urgency: ${insight?.urgency || 1}/10
+- Strategy: ${insight?.strategy || 'Build rapport'}
 
-            Task:
-            1. Suggest the next best response.
-            2. Detect objections.
-            3. Provide a rebuttal tailored to their personality.
-            4. Provide "Confidence Tips" (how to say it, what to emphasize).
+YOUR JOB:
+1. suggested_response — Say this VERBATIM. ${isSimple ? 'Max 10 simple words. Native English. Easy to say fast.' : 'Natural, confident American English. One punchy sentence.'}
+2. detected_objection — Exact type or null. Types: PRICE_OBJECTION | NOT_INTERESTED | AGENT_OBJECTION | TIMING_OBJECTION | TRUST_OBJECTION | NEED_TO_THINK | SPOUSE_OBJECTION | null
+3. rebuttal — Only if objection detected. One sentence. ${isSimple ? 'Short words.' : 'Sharp and direct.'}
+4. confidence_tips — HOW to say it. Tone/pace/emphasis. Max 12 words.
+5. pronunciation_score — How easy to pronounce fast under pressure. 1-10.
+6. urgency_level — How urgent is a reply needed right now. 1=low 10=critical. Base on seller tone.
 
-            Constraints:
-            - Language: ${mode === 'beginner' ? 'Level 1 English. No big words. Max 7 words per sentence.' : 'Natural conversational American English.'}
-            - Style: Real estate investor style (We buy houses).
-            - Avoid: "I am an AI", "How can I help you", robotic formal language.
+RULES:
+- NO filler phrases ("I understand", "Great question")
+- NO AI language ("As your copilot...")
+- Real investor talk: direct, human, confident
+- If seller sounds angry/frustrated: urgency_level = 8+
+- If seller shows buying signal: urgency_level = 9+
 
-            Format as JSON: { suggested_response, detected_objection, rebuttal, confidence_tips, pronunciation_score (1-10) }
-        `;
+Format: { suggested_response, detected_objection, rebuttal, confidence_tips, pronunciation_score, urgency_level }
+        `.trim();
 
         if (!ai) {
             return {
                 suggested_response: "Got it. How long have you owned the place?",
                 detected_objection: null,
                 rebuttal: null,
-                confidence_tips: "Speak slowly and clearly.",
-                pronunciation_score: 10
+                confidence_tips: "Speak slow, steady voice.",
+                pronunciation_score: 10,
+                urgency_level: 5
             };
         }
 
@@ -117,21 +125,69 @@ export class OpenAIService {
           model: getModel(),
           messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Recent Transcript:\n${context}` }
+              { role: 'user', content: `LIVE TRANSCRIPT (most recent last):\n${context}` }
           ],
           response_format: { type: 'json_object' },
-        }, { timeout: 3000 });
+          temperature: 0.4,
+        }, { timeout: 4000 });
 
         return JSON.parse(response.choices[0].message.content || '{}');
     } catch (e: any) {
         logger.error('AI Suggestion failed', { error: e.message });
         return {
-            suggested_response: "I see. Are you open to a cash offer?",
+            suggested_response: "Are you open to a quick cash offer?",
             detected_objection: null,
             rebuttal: null,
             confidence_tips: "Keep the momentum going.",
-            pronunciation_score: 9
+            pronunciation_score: 9,
+            urgency_level: 5
         };
+    }
+  }
+
+  async generateCallSummary(transcript: string, insight: any): Promise<any> {
+    const ai = getOpenAI();
+    const fallback = {
+      outcome: 'Call completed. Review transcript for details.',
+      seller_signals: insight?.motivation || [],
+      objections_raised: [],
+      recommended_followup: insight?.urgency > 5 ? 'Call back within 24 hours' : 'Follow up in 3–5 days',
+      best_opener_for_callback: `Hi, I called earlier about your property. Did you get a chance to think about it?`,
+    };
+    if (!ai || !transcript.trim()) return fallback;
+
+    try {
+      const prompt = `You are a real estate acquisition analyst. Analyze this cold call transcript.
+
+TRANSCRIPT:
+${transcript.slice(-3000)}
+
+SELLER INSIGHT:
+- Personality: ${insight?.personality || 'Unknown'}
+- Motivations: ${insight?.motivation?.join(', ') || 'None detected'}
+- Urgency: ${insight?.urgency || 1}/10
+- Deal Probability: ${Math.round((insight?.dealProbability || 0.1) * 100)}%
+
+Return JSON with:
+{
+  "outcome": "one sentence: how call went, seller's mood, key result",
+  "seller_signals": ["max 3 specific things seller said that signal intent"],
+  "objections_raised": ["each objection the seller gave"],
+  "recommended_followup": "specific next action with exact timing (e.g. 'Call back Thursday morning')",
+  "best_opener_for_callback": "exact verbatim first line to use on next call, personalized to what was said"
+}`;
+
+      const res = await ai.chat.completions.create({
+        model: getModel(),
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+      }, { timeout: 10000 });
+
+      return JSON.parse(res.choices[0].message.content || '{}');
+    } catch (e: any) {
+      logger.error('Call summary generation failed', { error: e.message });
+      return fallback;
     }
   }
 

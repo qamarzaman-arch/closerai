@@ -27,16 +27,23 @@ export class WebSocketService {
       let currentSessionId: string | null = null;
       let contextManager = new ConversationContextManager();
       let throttler = new SuggestionThrottler();
-      let transcriptionManager: TranscriptionManager | null = null;
+      let callerTranscriptionManager: TranscriptionManager | null = null;
+      let clientTranscriptionManager: TranscriptionManager | null = null;
 
-      if (process.env.OPENAI_API_KEY) {
-          transcriptionManager = new TranscriptionManager(process.env.OPENAI_API_KEY);
-          transcriptionManager.on('transcription', async (text) => {
+      const makeTranscriber = (speaker: 'Caller' | 'Client') => {
+          if (!process.env.OPENAI_API_KEY) return null;
+          const mgr = new TranscriptionManager(process.env.OPENAI_API_KEY);
+          mgr.on('transcription', async (text: string) => {
               if (currentSessionId) {
-                  await this.handleTranscriptUpdate(ws, currentSessionId, text, 'Client', contextManager, throttler);
+                  const mode = speaker === 'Caller' ? 'beginner' : undefined;
+                  await this.handleTranscriptUpdate(ws, currentSessionId, text, speaker, contextManager, throttler, mode);
               }
           });
-      }
+          return mgr;
+      };
+
+      callerTranscriptionManager = makeTranscriber('Caller');
+      clientTranscriptionManager = makeTranscriber('Client');
 
       ws.on('message', async (message: any) => {
         try {
@@ -60,8 +67,10 @@ export class WebSocketService {
                 break;
 
               case 'AUDIO_CHUNK':
-                if (transcriptionManager) {
-                    await transcriptionManager.addAudioChunk(data.chunk);
+                if (data.speaker === 'Caller' && callerTranscriptionManager) {
+                    await callerTranscriptionManager.addAudioChunk(data.chunk);
+                } else if (clientTranscriptionManager) {
+                    await clientTranscriptionManager.addAudioChunk(data.chunk);
                 }
                 break;
 
@@ -101,10 +110,38 @@ export class WebSocketService {
                     data: {
                       sessionId: currentSessionId,
                       content: contextManager.getContextString(),
-                      jsonContent: JSON.stringify([])
+                      jsonContent: contextManager.getMessagesJson()
                     }
                   });
                   logger.info('Call ended', { sessionId: currentSessionId });
+
+                  // Generate call summary async — don't block CALL_ENDED response
+                  const summaryTranscript = contextManager.getContextString();
+                  const summaryInsight = insight;
+                  const summaryLeadId = sessionData?.leadId;
+                  setImmediate(async () => {
+                    try {
+                      const summary = await openAIService.generateCallSummary(summaryTranscript, summaryInsight);
+                      if (ws.readyState === 1 /* OPEN */) {
+                        ws.send(JSON.stringify({ type: 'CALL_SUMMARY', summary }));
+                      }
+                      // Auto-save summary as a lead note
+                      if (summaryLeadId) {
+                        const date = new Date().toLocaleDateString();
+                        const noteLines = [
+                          `📋 Call Summary (${date})`,
+                          `Outcome: ${summary.outcome}`,
+                          summary.seller_signals?.length ? `Signals: ${summary.seller_signals.join(', ')}` : '',
+                          summary.objections_raised?.length ? `Objections: ${summary.objections_raised.join(', ')}` : '',
+                          `Next Step: ${summary.recommended_followup}`,
+                          `Callback Opener: "${summary.best_opener_for_callback}"`,
+                        ].filter(Boolean).join('\n');
+                        await prisma.note.create({ data: { leadId: summaryLeadId, content: noteLines } });
+                      }
+                    } catch (err: any) {
+                      logger.error('CALL_SUMMARY generation failed', { error: err.message });
+                    }
+                  });
                 }
                 ws.send(JSON.stringify({ type: 'CALL_ENDED' }));
                 currentSessionId = null;
@@ -115,8 +152,47 @@ export class WebSocketService {
         }
       });
 
-      ws.on('close', () => {
+      ws.on('close', async () => {
         logger.info('WebSocket connection closed');
+        if (currentSessionId) {
+          try {
+            const insight = reIntelligence.analyzeConversation(contextManager.getContextString());
+            await prisma.callSession.update({
+              where: { id: currentSessionId },
+              data: {
+                endTime: new Date(),
+                outcome: 'Disconnected',
+                motivation_detected: insight.motivation.join(', '),
+                urgency_level: insight.urgency,
+                deal_probability: insight.dealProbability,
+                seller_personality: insight.personality
+              }
+            });
+            const sessionData = await prisma.callSession.findUnique({ where: { id: currentSessionId } });
+            if (sessionData) {
+              await prisma.lead.update({
+                where: { id: sessionData.leadId },
+                data: { motivation_tags: insight.motivation.join(','), deal_score: insight.dealProbability * 100 }
+              });
+            }
+            const existingTranscript = await prisma.transcript.findUnique({ where: { sessionId: currentSessionId } });
+            if (!existingTranscript) {
+              await prisma.transcript.create({
+                data: {
+                  sessionId: currentSessionId,
+                  content: contextManager.getContextString(),
+                  jsonContent: contextManager.getMessagesJson()
+                }
+              });
+            }
+            logger.info('Session auto-closed on disconnect', { sessionId: currentSessionId });
+          } catch (err: any) {
+            logger.error('Error auto-closing session on disconnect', { error: err.message });
+          }
+          currentSessionId = null;
+        }
+        if (callerTranscriptionManager) callerTranscriptionManager.removeAllListeners();
+        if (clientTranscriptionManager) clientTranscriptionManager.removeAllListeners();
       });
     });
   }
@@ -137,7 +213,7 @@ export class WebSocketService {
           strategy
       }));
 
-      if (throttler.shouldGenerate()) {
+      if (speaker.toLowerCase() !== 'caller' && throttler.shouldGenerate()) {
           const suggestion = await openAIService.getRealtimeSuggestion(fullContext, mode, { ...insight, strategy: strategy.tone });
 
           await prisma.aISuggestion.create({

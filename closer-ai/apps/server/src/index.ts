@@ -29,15 +29,30 @@ app.use('/api/leads', leadRoutes);
 
 // Basic health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', aiConfigured: !!process.env.OPENAI_API_KEY });
 });
 
 app.get('/health/db', async (req, res) => {
+  const provider = process.env.DATABASE_URL?.startsWith('file:') ? 'sqlite' : 'mysql';
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', provider: 'mysql' });
+    res.json({ status: 'ok', provider });
   } catch (error: any) {
-    res.status(503).json({ status: 'error', provider: 'mysql', error: error.message });
+    res.status(503).json({ status: 'error', provider, error: error.message });
+  }
+});
+
+app.get('/health/ai', async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({ status: 'error', reason: 'OPENAI_API_KEY not configured' });
+  }
+  try {
+    const { default: OpenAI } = await import('openai');
+    const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_BASE_URL });
+    await ai.models.list();
+    res.json({ status: 'ok', model: process.env.OPENAI_MODEL || 'gpt-4o-mini' });
+  } catch (error: any) {
+    res.status(503).json({ status: 'error', reason: error.message });
   }
 });
 

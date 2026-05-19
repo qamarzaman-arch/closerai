@@ -25,6 +25,7 @@ interface Suggestion {
   rebuttal?: string;
   confidence_tips?: string;
   pronunciation_score?: number;
+  urgency_level?: number;
   multiStyleRebuttals?: {
       soft: string;
       firm: string;
@@ -53,6 +54,14 @@ interface AppStrategy {
     keyPoints: string[];
 }
 
+interface CallSummary {
+  outcome: string;
+  seller_signals: string[];
+  objections_raised: string[];
+  recommended_followup: string;
+  best_opener_for_callback: string;
+}
+
 interface AppState {
   leads: Lead[];
   currentLead: Lead | null;
@@ -62,6 +71,7 @@ interface AppState {
   confidenceMode: 'beginner' | 'intermediate' | 'advanced';
   currentInsight: AppInsight | null;
   currentStrategy: AppStrategy | null;
+  callSummary: CallSummary | null;
 
   setLeads: (leads: Lead[]) => void;
   setCurrentLead: (lead: Lead | null) => void;
@@ -71,6 +81,7 @@ interface AppState {
   setConfidenceMode: (mode: 'beginner' | 'intermediate' | 'advanced') => void;
   setInsight: (insight: AppInsight) => void;
   setStrategy: (strategy: AppStrategy) => void;
+  setCallSummary: (summary: CallSummary | null) => void;
   clearCallData: () => void;
 }
 
@@ -83,6 +94,7 @@ export const useAppStore = create<AppState>((set) => ({
   confidenceMode: 'beginner',
   currentInsight: null,
   currentStrategy: null,
+  callSummary: null,
 
   setLeads: (leads) => set({ leads }),
   setCurrentLead: (lead) => set({ currentLead: lead }),
@@ -96,5 +108,6 @@ export const useAppStore = create<AppState>((set) => ({
   setConfidenceMode: (confidenceMode) => set({ confidenceMode }),
   setInsight: (currentInsight) => set({ currentInsight }),
   setStrategy: (currentStrategy) => set({ currentStrategy }),
-  clearCallData: () => set({ transcript: [], suggestions: [], currentInsight: null, currentStrategy: null }),
+  setCallSummary: (callSummary) => set({ callSummary }),
+  clearCallData: () => set({ transcript: [], suggestions: [], currentInsight: null, currentStrategy: null, callSummary: null }),
 }));

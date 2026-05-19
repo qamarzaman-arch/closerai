@@ -27,12 +27,22 @@ export class StrategyEngine {
             strategy.pacing = 'Slow';
             strategy.closingStyle = 'Soft';
             strategy.keyPoints = ['Market data comparison', 'Detailed closing timeline'];
+        } else if (insight.personality === 'Skeptical') {
+            strategy.tone = 'Educational';
+            strategy.pacing = 'Slow';
+            strategy.closingStyle = 'Soft';
+            strategy.keyPoints = ['No obligation offer', 'Local references available', 'Transparent process'];
+        } else if (insight.personality === 'Emotional') {
+            strategy.tone = 'Empathetic';
+            strategy.pacing = 'Slow';
+            strategy.closingStyle = 'Soft';
+            strategy.keyPoints = ['Hassle-free process', 'We handle everything', 'Respectful timeline'];
         } else if (insight.urgency > 7) {
             strategy.tone = 'Urgent';
             strategy.pacing = 'Fast';
             strategy.closingStyle = 'Take-away';
             strategy.keyPoints = ['Stop foreclosure', 'Close in 7 days'];
-        } else if (insight.motivation.includes('Inherited Property') || insight.motivation.includes('Divorce')) {
+        } else if (insight.motivation.includes('Probate/Inherited') || insight.motivation.includes('Divorce')) {
             strategy.tone = 'Empathetic';
             strategy.pacing = 'Slow';
             strategy.closingStyle = 'Soft';

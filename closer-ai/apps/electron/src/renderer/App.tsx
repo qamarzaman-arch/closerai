@@ -12,10 +12,12 @@ type AppView = 'dashboard' | 'leads' | 'pipeline' | 'settings';
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const isCalling = useAppStore(state => state.isCalling);
+  const currentLead = useAppStore(state => state.currentLead);
+  const showCallView = isCalling || !!currentLead;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0b1018] text-white selection:bg-blue-500/30">
-      {!isCalling && (
+      {!showCallView && (
         <div className="w-72 bg-[#111827] p-5 border-r border-gray-800 flex flex-col">
           <div className="flex items-center gap-4 mb-8 px-1">
             <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-900/40"><Headphones size={26} /></div>
@@ -38,7 +40,7 @@ const App: React.FC = () => {
         </div>
       )}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0b1018]">
-        {isCalling ? <CallCopilotView /> : (
+        {showCallView ? <CallCopilotView /> : (
           activeView === 'dashboard' ? <DashboardView /> :
           activeView === 'pipeline' ? <PipelineView /> :
           activeView === 'settings' ? <SettingsView /> :

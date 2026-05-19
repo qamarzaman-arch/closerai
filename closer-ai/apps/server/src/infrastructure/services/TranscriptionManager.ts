@@ -27,12 +27,11 @@ export class TranscriptionManager extends EventEmitter {
 
   private async processBuffer() {
     this.isProcessing = true;
+    const tempFile = path.join(__dirname, `../../temp_${Date.now()}.wav`);
     try {
       const bufferToProcess = Buffer.concat(this.audioBuffer);
       // Keep a small overlap for better transcription continuity
       this.audioBuffer = [bufferToProcess.slice(-4096)];
-
-      const tempFile = path.join(__dirname, `../../temp_${Date.now()}.wav`);
 
       // Simple WAV header for 16kHz 16-bit Mono
       const wavHeader = Buffer.alloc(44);
@@ -58,14 +57,16 @@ export class TranscriptionManager extends EventEmitter {
         language: 'en',
       });
 
-      fs.unlinkSync(tempFile);
-
       if (transcription.text.trim()) {
         this.emit('transcription', transcription.text);
       }
     } catch (error: any) {
       logger.error('Transcription error', { error: error.message });
     } finally {
+      // Always clean up temp file regardless of success or failure
+      if (fs.existsSync(tempFile)) {
+        try { fs.unlinkSync(tempFile); } catch (_) {}
+      }
       this.isProcessing = false;
     }
   }

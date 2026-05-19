@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Activity, CalendarClock, Database, Users, PhoneCall, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { API_BASE } from '../../config/api';
 
 type Analytics = {
   totalLeads: number;
@@ -22,9 +23,9 @@ const DashboardView: React.FC = () => {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/leads').then(res => setLeads(res.data)).catch(console.error);
-    axios.get('http://localhost:3001/api/leads/analytics/summary').then(res => setAnalytics(res.data)).catch(console.error);
-    axios.get('http://localhost:3001/health/db')
+    axios.get(`${API_BASE}/api/leads`).then(res => setLeads(res.data)).catch(console.error);
+    axios.get(`${API_BASE}/api/leads/analytics/summary`).then(res => setAnalytics(res.data)).catch(console.error);
+    axios.get(`${API_BASE}/health/db`)
       .then(() => setDbStatus('ok'))
       .catch(() => setDbStatus('error'));
   }, [setLeads]);

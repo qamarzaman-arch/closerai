@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useAppStore } from '../../store/useAppStore';
+import { API_BASE } from '../../config/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { Calendar, Download, ExternalLink, Globe, Link, Edit3, FileText, Phone, Plus, Save, Search, StickyNote, Trash2, TrendingUp, Upload, X } from 'lucide-react';
 
@@ -58,7 +59,7 @@ const LeadsView: React.FC = () => {
   const loadLeads = async () => {
     try {
       setLoadError('');
-      const res = await axios.get('http://localhost:3001/api/leads');
+      const res = await axios.get(`${API_BASE}/api/leads`);
       setLeads(res.data);
       if (!selectedLeadId && res.data.length) setSelectedLeadId(res.data[0].id);
     } catch (error: any) {
@@ -67,7 +68,7 @@ const LeadsView: React.FC = () => {
   };
 
   const loadLeadDetails = async (id: string) => {
-    const res = await axios.get(`http://localhost:3001/api/leads/${id}`);
+    const res = await axios.get(`${API_BASE}/api/leads/${id}`);
     setSelectedLead(res.data);
   };
 
@@ -139,8 +140,8 @@ const LeadsView: React.FC = () => {
 
     try {
       const response = formMode === 'edit' && selectedLead
-        ? await axios.put(`http://localhost:3001/api/leads/${selectedLead.id}`, payload)
-        : await axios.post('http://localhost:3001/api/leads', payload);
+        ? await axios.put(`${API_BASE}/api/leads/${selectedLead.id}`, payload)
+        : await axios.post(`${API_BASE}/api/leads`, payload);
       await loadLeads();
       setSelectedLeadId(response.data.id);
       setFormMode('closed');
@@ -152,7 +153,7 @@ const LeadsView: React.FC = () => {
   const handleDeleteLead = async () => {
     if (!selectedLead) return;
     try {
-      await axios.delete(`http://localhost:3001/api/leads/${selectedLead.id}`);
+      await axios.delete(`${API_BASE}/api/leads/${selectedLead.id}`);
       setSelectedLead(null);
       setSelectedLeadId(null);
       await loadLeads();
@@ -163,7 +164,7 @@ const LeadsView: React.FC = () => {
 
   const handleQuickStatus = async (status: string) => {
     if (!selectedLead) return;
-    const response = await axios.put(`http://localhost:3001/api/leads/${selectedLead.id}`, { call_status: status });
+    const response = await axios.put(`${API_BASE}/api/leads/${selectedLead.id}`, { call_status: status });
     setSelectedLead(response.data);
     await loadLeads();
     setSuccessMessage(`Marked ${response.data.full_name} as ${status.replace('_', ' ')}.`);
@@ -173,7 +174,7 @@ const LeadsView: React.FC = () => {
     if (!selectedLead) return;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const response = await axios.put(`http://localhost:3001/api/leads/${selectedLead.id}`, {
+    const response = await axios.put(`${API_BASE}/api/leads/${selectedLead.id}`, {
       call_status: 'FOLLOW_UP',
       follow_up_date: tomorrow.toISOString().slice(0, 10),
     });
@@ -184,14 +185,14 @@ const LeadsView: React.FC = () => {
 
   const handleAddNote = async () => {
     if (!selectedLead || !noteText.trim()) return;
-    await axios.post(`http://localhost:3001/api/leads/${selectedLead.id}/notes`, { content: noteText.trim() });
+    await axios.post(`${API_BASE}/api/leads/${selectedLead.id}/notes`, { content: noteText.trim() });
     setNoteText('');
     await loadLeadDetails(selectedLead.id);
   };
 
   const handleAddResource = async () => {
     if (!selectedLead || !resourceForm.title.trim() || !resourceForm.content.trim()) return;
-    await axios.post(`http://localhost:3001/api/leads/${selectedLead.id}/resources`, {
+    await axios.post(`${API_BASE}/api/leads/${selectedLead.id}/resources`, {
       type: resourceForm.type,
       title: resourceForm.title.trim(),
       url: resourceForm.url.trim() || null,
@@ -204,7 +205,7 @@ const LeadsView: React.FC = () => {
 
   const handleDeleteResource = async (resourceId: string) => {
     if (!selectedLead) return;
-    await axios.delete(`http://localhost:3001/api/leads/${selectedLead.id}/resources/${resourceId}`);
+    await axios.delete(`${API_BASE}/api/leads/${selectedLead.id}/resources/${resourceId}`);
     await loadLeadDetails(selectedLead.id);
   };
 
@@ -212,7 +213,7 @@ const LeadsView: React.FC = () => {
     if (!selectedLead) return;
     setIsGeneratingScript(true);
     try {
-      const response = await axios.get(`http://localhost:3001/api/leads/${selectedLead.id}/generate-script?mode=beginner`);
+      const response = await axios.get(`${API_BASE}/api/leads/${selectedLead.id}/generate-script?mode=beginner`);
       setScript(response.data);
     } finally {
       setIsGeneratingScript(false);
@@ -321,7 +322,7 @@ const LeadsView: React.FC = () => {
         setLoadError('No valid prospects found. CSV needs name/full_name and phone/phone_number columns.');
         return;
       }
-      const response = await axios.post('http://localhost:3001/api/leads/import', { leads: leadsToImport });
+      const response = await axios.post(`${API_BASE}/api/leads/import`, { leads: leadsToImport });
       setSuccessMessage(`Imported ${response.data.imported} prospects from ${file.name}.`);
       await loadLeads();
     } catch (error: any) {

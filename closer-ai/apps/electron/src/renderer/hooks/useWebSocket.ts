@@ -1,23 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { WS_BASE } from '../config/api';
 
 let globalWs: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 const pendingMessages: string[] = [];
 
 export const useWebSocket = () => {
-  const { addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, confidenceMode, setInsight, setStrategy } = useAppStore();
+  const { addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, confidenceMode, setInsight, setStrategy, setCallSummary } = useAppStore();
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  const storeRef = useRef({ addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, setInsight, setStrategy });
+  const storeRef = useRef({ addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, setInsight, setStrategy, setCallSummary });
 
   // Keep refs up to date without triggering effects
-  storeRef.current = { addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, setInsight, setStrategy };
+  storeRef.current = { addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, setInsight, setStrategy, setCallSummary };
 
   const connect = () => {
     if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) return;
 
       setConnectionStatus('connecting');
-      globalWs = new WebSocket('ws://localhost:3001');
+      globalWs = new WebSocket(WS_BASE);
 
       globalWs.onopen = () => {
         setConnectionStatus('connected');
@@ -29,7 +30,7 @@ export const useWebSocket = () => {
       globalWs.onmessage = (event) => {
         try {
             const message = JSON.parse(event.data);
-            const { addTranscriptEntry, addSuggestion, setIsCalling, setCurrentLead, setInsight, setStrategy } = storeRef.current;
+            const { addTranscriptEntry, addSuggestion, setIsCalling, setInsight, setStrategy, setCallSummary } = storeRef.current;
 
             switch (message.type) {
               case 'NEW_TRANSCRIPT':
@@ -48,8 +49,11 @@ export const useWebSocket = () => {
                 setIsCalling(true);
                 break;
               case 'CALL_ENDED':
+                // Don't clear currentLead — CallCopilotView handles cleanup after summary dismiss
                 setIsCalling(false);
-                setCurrentLead(null);
+                break;
+              case 'CALL_SUMMARY':
+                setCallSummary(message.summary);
                 break;
             }
         } catch (e) { console.error(e); }
@@ -81,7 +85,8 @@ export const useWebSocket = () => {
 
   const startCall = (leadId: string) => sendMessage({ type: 'START_CALL', leadId });
   const endCall = (outcome: string) => sendMessage({ type: 'END_CALL', outcome });
-  const sendAudioChunk = (chunk: string) => sendMessage({ type: 'AUDIO_CHUNK', chunk });
+  const sendAudioChunk = (chunk: string, speaker: 'Caller' | 'Client' = 'Client') =>
+    sendMessage({ type: 'AUDIO_CHUNK', chunk, speaker });
   const sendTranscript = (text: string, speaker: string) => {
       sendMessage({ type: 'TRANSCRIPT_UPDATE', text, speaker, mode: confidenceMode });
   };

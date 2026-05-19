@@ -47,7 +47,7 @@ export const WSMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('START_CALL'), leadId: z.string() }),
   z.object({ type: z.literal('END_CALL'), outcome: z.string().optional() }),
   z.object({ type: z.literal('TRANSCRIPT_UPDATE'), text: z.string(), speaker: z.string(), mode: z.string().optional() }),
-  z.object({ type: z.literal('AUDIO_CHUNK'), chunk: z.string() }),
+  z.object({ type: z.literal('AUDIO_CHUNK'), chunk: z.string(), speaker: z.enum(['Caller', 'Client']).default('Client') }),
   z.object({ type: z.literal('PING') }),
   z.object({ type: z.literal('PONG') }),
 ]);

@@ -2,3 +2,6 @@ node_modules
 dist
 .env
 *.log
+apps/server/src/temp_*.wav
+apps/server/prisma/dev.db
+.runtime-pids

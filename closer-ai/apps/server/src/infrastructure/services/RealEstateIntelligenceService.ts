@@ -70,15 +70,6 @@ export class RealEstateIntelligenceService {
         return insight;
     }
 
-    getCallStrategy(personality: string): string {
-        switch(personality) {
-            case 'Analytical': return 'Focus on data, market trends, and specific closing timelines. Avoid fluff.';
-            case 'Skeptical': return 'Build trust first. Mention local references and explain the "no-obligation" process clearly.';
-            case 'Aggressive': return 'Stay calm, be direct, and don\'t take it personally. Focus on the problem you solve.';
-            case 'Emotional': return 'Show empathy. Use "I understand" and "I hear you" frequently.';
-            default: return 'Standard motivated seller approach: focus on convenience and speed.';
-        }
-    }
 }
 
 export class ObjectionLibrary {
