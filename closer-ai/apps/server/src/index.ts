@@ -69,6 +69,16 @@ app.use(globalErrorHandler);
 // Initialize WebSocket Service
 new WebSocketService(server);
 
-server.listen(PORT, () => {
+const httpServer = server.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
 });
+
+// Graceful shutdown — lets ts-node-dev hot-reload without EADDRINUSE
+const shutdown = () => {
+  httpServer.close(() => {
+    prisma.$disconnect().then(() => process.exit(0));
+  });
+  setTimeout(() => process.exit(1), 3000); // force-exit if not clean in 3s
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

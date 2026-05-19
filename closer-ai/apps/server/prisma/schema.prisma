@@ -70,8 +70,8 @@ model Transcript {
   id            String      @id @default(uuid())
   sessionId     String      @unique
   session       CallSession @relation(fields: [sessionId], references: [id])
-  content       String
-  jsonContent   String
+  content       String      @db.LongText
+  jsonContent   String      @db.LongText
   createdAt     DateTime    @default(now())
 }
 
@@ -79,8 +79,8 @@ model AISuggestion {
   id            String      @id @default(uuid())
   sessionId     String
   session       CallSession @relation(fields: [sessionId], references: [id])
-  prompt        String
-  response      String
+  prompt        String      @db.Text
+  response      String      @db.Text
   style         String?
   wasUsed       Boolean     @default(false)
   createdAt     DateTime    @default(now())

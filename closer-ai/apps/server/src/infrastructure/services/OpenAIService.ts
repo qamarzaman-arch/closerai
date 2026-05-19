@@ -25,7 +25,21 @@ function getOpenAI() {
 }
 
 function getModel() {
-  return process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  return process.env.OPENAI_MODEL || 'meta-llama/llama-3.1-8b-instruct:free';
+}
+
+// Free/local models don't support response_format=json_object — extract JSON from text
+function extractJSON(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw new Error('No JSON found in response');
+  }
 }
 
 export type ConfidenceMode = 'beginner' | 'intermediate' | 'advanced';
@@ -66,11 +80,10 @@ export class OpenAIService {
 
         const response = await ai.chat.completions.create({
           model: getModel(),
-          messages: [{ role: 'system', content: 'You are a real estate sales expert.' }, { role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-        }, { timeout: 5000 });
+          messages: [{ role: 'system', content: 'You are a real estate sales expert. Always respond with valid JSON only.' }, { role: 'user', content: prompt }],
+        }, { timeout: 8000 });
 
-        return JSON.parse(response.choices[0].message.content || '{}');
+        return extractJSON(response.choices[0].message.content || '{}');
     } catch (e: any) {
         logger.error('Script generation failed', { error: e.message });
         return this.getFallbackScript(lead);
@@ -125,13 +138,12 @@ Format: { suggested_response, detected_objection, rebuttal, confidence_tips, pro
           model: getModel(),
           messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: `LIVE TRANSCRIPT (most recent last):\n${context}` }
+              { role: 'user', content: `LIVE TRANSCRIPT (most recent last):\n${context}\n\nRespond with valid JSON only.` }
           ],
-          response_format: { type: 'json_object' },
           temperature: 0.4,
         }, { timeout: 4000 });
 
-        return JSON.parse(response.choices[0].message.content || '{}');
+        return extractJSON(response.choices[0].message.content || '{}');
     } catch (e: any) {
         logger.error('AI Suggestion failed', { error: e.message });
         return {
@@ -179,12 +191,11 @@ Return JSON with:
 
       const res = await ai.chat.completions.create({
         model: getModel(),
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt + '\n\nRespond with valid JSON only.' }],
         temperature: 0.3,
-      }, { timeout: 10000 });
+      }, { timeout: 15000 });
 
-      return JSON.parse(res.choices[0].message.content || '{}');
+      return extractJSON(res.choices[0].message.content || '{}');
     } catch (e: any) {
       logger.error('Call summary generation failed', { error: e.message });
       return fallback;
@@ -241,12 +252,11 @@ Return JSON:
 
       const res = await ai.chat.completions.create({
         model: getModel(),
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt + '\n\nRespond with valid JSON only.' }],
         temperature: 0.4,
-      }, { timeout: 15000 });
+      }, { timeout: 20000 });
 
-      const data = JSON.parse(res.choices[0].message.content || '{}');
+      const data = extractJSON(res.choices[0].message.content || '{}');
       // Store raw JSON so the frontend modal can render structured sections
       return { title: `AI Research — ${lead.full_name}`, content: JSON.stringify(data) };
     } catch (e: any) {

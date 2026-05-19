@@ -33,7 +33,7 @@ export class TranscriptionManager extends EventEmitter {
   private openai: OpenAI;
   private audioBuffer: Buffer[] = [];
   private isProcessing = false;
-  private readonly CHUNK_THRESHOLD = 16000 * 2 * 2; // 2 seconds of 16kHz 16-bit mono
+  private readonly CHUNK_THRESHOLD = 16000 * 2 * 6; // 6 seconds of 16kHz 16-bit mono — stays under Groq 20 RPM with 2 channels
   private readonly model: string;
   private readonly SILENCE_THRESHOLD = 0.01; // RMS below this = silence, skip
 
@@ -84,13 +84,27 @@ export class TranscriptionManager extends EventEmitter {
 
       fs.writeFileSync(tempFile, Buffer.concat([wavHeader, bufferToProcess]));
 
-      const transcription = await this.openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempFile),
-        model: this.model,
-        language: 'en',
-      });
+      let transcription: any;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          transcription = await this.openai.audio.transcriptions.create({
+            file: fs.createReadStream(tempFile),
+            model: this.model,
+            language: 'en',
+          });
+          break;
+        } catch (err: any) {
+          if (err.status === 429 && attempt < 2) {
+            // Extract retry-after from error message (Groq says "try again in Xs")
+            const seconds = parseInt(err.message?.match(/in (\d+)s/)?.[1] || '5', 10);
+            await new Promise(r => setTimeout(r, seconds * 1000 + 500));
+          } else {
+            throw err;
+          }
+        }
+      }
 
-      const text = transcription.text.trim();
+      const text = transcription?.text?.trim();
       if (text && !isHallucination(text)) {
         this.emit('transcription', text);
       } else if (text) {
