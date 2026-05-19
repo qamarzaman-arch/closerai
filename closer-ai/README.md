@@ -14,6 +14,19 @@ CloserAI is a production-ready, AI-powered desktop application designed for real
 - **Data**: Zod schema validation and structured Winston logging.
 - **Resilience**: Global Error Boundaries and automatic WebSocket reconnection.
 
+## Local MySQL / HeidiSQL Setup
+1. In HeidiSQL, confirm your MySQL/MariaDB username and password.
+2. Update `apps/server/.env`:
+   ```env
+   DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/closer_ai"
+   OPENAI_API_KEY=""
+   ```
+3. Create/sync the database:
+   ```bash
+   cd apps/server && npm run db:setup
+   ```
+   The setup command creates the `closer_ai` database if the credentials have permission, then pushes the Prisma schema.
+
 ## Production Setup
 ### Standard Build
 1. Install dependencies: `npm install` in both `apps/server` and `apps/electron`.

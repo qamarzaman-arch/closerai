@@ -5,10 +5,18 @@ interface Lead {
   full_name: string;
   phone_number: string;
   email?: string;
+  linkedin_url?: string;
+  website_url?: string;
   call_status: string;
   property_address?: string;
+  property_type?: string;
+  estimated_value?: number;
+  seller_motivation?: string;
   deal_score?: number;
   motivation_tags?: string;
+  notes?: string;
+  tags?: string;
+  follow_up_date?: string;
 }
 
 interface Suggestion {

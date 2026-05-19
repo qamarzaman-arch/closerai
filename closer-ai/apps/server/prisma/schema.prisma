@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -22,6 +22,7 @@ model Lead {
   phone_number      String
   email             String?
   linkedin_url      String?
+  website_url       String?
   property_address  String?
   property_type     String?
   estimated_value   Float?
@@ -36,6 +37,7 @@ model Lead {
   updatedAt         DateTime       @updatedAt
   sessions          CallSession[]
   noteHistory       Note[]
+  resources         LeadResource[]
 
   @@index([phone_number])
   @@index([full_name])
@@ -109,4 +111,19 @@ model Note {
   createdAt DateTime @default(now())
 
   @@index([leadId])
+}
+
+model LeadResource {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  type      String   @default("NOTE")
+  title     String
+  url       String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([type])
 }

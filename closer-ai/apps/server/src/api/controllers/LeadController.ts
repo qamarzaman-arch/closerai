@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { LeadRepository } from '../../domain/repositories/LeadRepository';
-import { LeadSchema } from '../../infrastructure/utils/schemas';
+import { LeadImportSchema, LeadResourceSchema, LeadSchema, LeadUpdateSchema } from '../../infrastructure/utils/schemas';
 import logger from '../../infrastructure/utils/logger';
 
 const leadRepository = new LeadRepository();
@@ -41,10 +41,33 @@ export class LeadController {
 
   async updateLead(req: Request, res: Response) {
     try {
-      const lead = await leadRepository.update(req.params.id as string, req.body);
+      const validatedData = LeadUpdateSchema.parse(req.body);
+      const lead = await leadRepository.update(req.params.id as string, validatedData);
       res.json(lead);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  }
+
+  async importLeads(req: Request, res: Response) {
+    try {
+      const validatedData = LeadImportSchema.parse(req.body.leads || req.body);
+      const result = await leadRepository.bulkCreate(validatedData);
+      logger.info('Leads imported', { count: result.count });
+      res.status(201).json({ imported: result.count });
+    } catch (error: any) {
+      logger.error('Error importing leads', { error: error.message });
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  async getAnalytics(req: Request, res: Response) {
+    try {
+      const analytics = await leadRepository.getAnalytics();
+      res.json(analytics);
+    } catch (error: any) {
+      logger.error('Error fetching analytics', { error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -59,8 +82,31 @@ export class LeadController {
 
   async addNote(req: Request, res: Response) {
     try {
+      if (!req.body.content?.trim()) {
+        return res.status(400).json({ error: 'Note content is required' });
+      }
       const note = await leadRepository.addNote(req.params.id as string, req.body.content);
       res.status(201).json(note);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  async addResource(req: Request, res: Response) {
+    try {
+      const validatedData = LeadResourceSchema.parse(req.body);
+      const resource = await leadRepository.addResource(req.params.id as string, validatedData);
+      res.status(201).json(resource);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  async deleteResource(req: Request, res: Response) {
+    try {
+      const result = await leadRepository.deleteResource(req.params.id as string, req.params.resourceId as string);
+      if (!result.count) return res.status(404).json({ error: 'Resource not found' });
+      res.status(204).send();
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

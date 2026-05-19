@@ -7,7 +7,9 @@
     "dev:server": "cd apps/server && npm run dev",
     "dev:electron": "cd apps/electron && npm run dev",
     "build:all": "cd apps/server && npm run build && cd ../electron && npm run build",
-    "start": "concurrently \"npm run dev:server\" \"npm run dev:electron\"",
+    "start": "concurrently \"npm run dev:server\" \"cd apps/electron && npm run start\"",
+    "start:renderer": "concurrently \"npm run dev:server\" \"npm run dev:electron\"",
+    "db:setup": "cd apps/server && npm run db:setup",
     "test": "cd apps/server && npm run test"
   },
   "devDependencies": {

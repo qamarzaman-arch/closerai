@@ -9,11 +9,15 @@ const openAIService = new OpenAIService();
 const leadRepo = new LeadRepository();
 
 router.post('/', leadController.createLead);
+router.post('/import', leadController.importLeads);
+router.get('/analytics/summary', leadController.getAnalytics);
 router.get('/', leadController.getAllLeads);
 router.get('/:id', leadController.getLeadById);
 router.put('/:id', leadController.updateLead);
 router.delete('/:id', leadController.deleteLead);
 router.post('/:id/notes', leadController.addNote);
+router.post('/:id/resources', leadController.addResource);
+router.delete('/:id/resources/:resourceId', leadController.deleteResource);
 
 router.get('/:id/generate-script', async (req, res) => {
   try {
