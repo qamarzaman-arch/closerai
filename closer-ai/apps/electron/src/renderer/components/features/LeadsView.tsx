@@ -365,28 +365,33 @@ const LeadsView: React.FC = () => {
     }
   };
 
+  const closeLeadModal = () => { setSelectedLead(null); setSelectedLeadId(null); setScript(null); };
+
   return (
-    <div className="h-full overflow-hidden grid grid-cols-[minmax(420px,1fr)_420px] relative">
+    <div className="h-full flex flex-col overflow-hidden relative">
 
       {/* ── Background research toast ── */}
       {researchingLeads.size > 0 && (
-        <div className="fixed bottom-6 right-6 z-40 space-y-2">
+        <div className="fixed bottom-6 right-6 z-50 space-y-2">
           {Array.from(researchingLeads.entries()).map(([id, name]) => (
             <div key={id} className="flex items-center gap-3 bg-gray-800 border border-purple-500/40 rounded-2xl px-4 py-3 shadow-2xl shadow-black/40">
               <Loader2 size={14} className="text-purple-400 animate-spin shrink-0" />
               <div>
                 <p className="text-xs font-black text-white">Researching {name}</p>
-                <p className="text-[10px] text-gray-500">Running in background — will auto-open when ready</p>
+                <p className="text-[10px] text-gray-500">Runs in background — opens when ready</p>
               </div>
-              <button
-                onClick={() => setResearchingLeads(prev => { const m = new Map(prev); m.delete(id); return m; })}
-                className="text-gray-600 hover:text-gray-400 ml-1"
-                title="Hide (research still runs)"
-              >
-                <X size={13} />
-              </button>
+              <button onClick={() => setResearchingLeads(prev => { const m = new Map(prev); m.delete(id); return m; })} className="text-gray-600 hover:text-gray-400 ml-1"><X size={13} /></button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Lead Create/Edit form modal ── */}
+      {formMode !== 'closed' && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
+          <div className="w-full max-w-2xl bg-[#0f1623] border border-gray-700 rounded-3xl shadow-2xl overflow-hidden">
+            <LeadFormPanel mode={formMode} formData={formData} formError={formError} setFormData={setFormData} onSave={handleSaveLead} onCancel={() => setFormMode('closed')} />
+          </div>
         </div>
       )}
 
@@ -396,207 +401,282 @@ const LeadsView: React.FC = () => {
           lead={researchModalData.lead}
           resource={researchModalData.resource}
           onClose={() => setShowResearchModal(false)}
-          onRegenerate={() => {
-            setShowResearchModal(false);
-            handleResearch(researchModalData.lead);
-          }}
-          onDelete={async () => {
-            await handleDeleteResource(researchModalData.resource.id);
-            setShowResearchModal(false);
-          }}
+          onRegenerate={() => { setShowResearchModal(false); handleResearch(researchModalData.lead); }}
+          onDelete={async () => { await handleDeleteResource(researchModalData.resource.id); setShowResearchModal(false); }}
         />
       )}
-      <div className="p-8 overflow-y-auto">
+
+      {/* ── Lead Detail modal ── */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-5xl max-h-[92vh] bg-[#0f1623] border border-gray-700/60 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-8 py-5 border-b border-gray-800 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-600/20 border border-blue-500/30 rounded-2xl flex items-center justify-center text-blue-400 font-black text-xl">
+                  {selectedLead.full_name.charAt(0)}
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-white">{selectedLead.full_name}</h2>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-sm text-gray-400 font-bold">{selectedLead.phone_number}</span>
+                    <StatusBadge status={selectedLead.call_status} />
+                    {selectedLead.deal_score != null && (
+                      <span className="flex items-center gap-1 text-green-400 text-xs font-black">
+                        <TrendingUp size={11} /> {Math.round(Number(selectedLead.deal_score))}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleStartCall(selectedLead)} className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-sm font-black uppercase">
+                  <Phone size={15} /> Call Now
+                </button>
+                <button onClick={closeLeadModal} className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-all"><X size={18} /></button>
+              </div>
+            </div>
+
+            {/* Modal body — scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-0 divide-x divide-gray-800">
+
+                {/* LEFT column */}
+                <div className="p-6 space-y-5">
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <ActionButton icon={<Edit3 size={14} />} label="Edit" onClick={openEditForm} />
+                    <ActionButton
+                      icon={researchingLeads.has(selectedLead.id) ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
+                      label={researchingLeads.has(selectedLead.id) ? 'Running...' : 'AI Research'}
+                      onClick={() => handleResearch(selectedLead)}
+                      highlight
+                    />
+                    <ActionButton icon={<FileText size={14} />} label={isGeneratingScript ? 'Loading...' : 'Script'} onClick={handleGenerateScript} />
+                  </div>
+
+                  {/* Quick status */}
+                  <div className="bg-gray-900/50 border border-gray-700/40 rounded-2xl p-4">
+                    <p className="text-[10px] font-black uppercase text-gray-500 mb-3">Quick Status</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <ActionButton icon={<Phone size={13} />} label="Contacted" onClick={() => handleQuickStatus('CONTACTED')} />
+                      <ActionButton icon={<TrendingUp size={13} />} label="Qualified" onClick={() => handleQuickStatus('QUALIFIED')} />
+                      <ActionButton icon={<Calendar size={13} />} label="Follow Up Tomorrow" onClick={scheduleTomorrow} />
+                      <ActionButton icon={<X size={13} />} label="Not Interested" onClick={() => handleQuickStatus('NOT_INTERESTED')} danger />
+                    </div>
+                  </div>
+
+                  {/* Info fields */}
+                  <div className="space-y-3">
+                    <DetailRow icon={<Globe size={13} />} label="Property" value={selectedLead.property_address || '—'} />
+                    <DetailRow icon={<Target size={13} />} label="Type" value={selectedLead.property_type || '—'} />
+                    <DetailRow icon={<TrendingUp size={13} />} label="Est. Value" value={selectedLead.estimated_value ? `$${Number(selectedLead.estimated_value).toLocaleString()}` : '—'} />
+                    <DetailRow icon={<Zap size={13} />} label="Motivation" value={selectedLead.seller_motivation || selectedLead.motivation_tags || '—'} />
+                    <DetailRow icon={<Calendar size={13} />} label="Follow Up" value={selectedLead.follow_up_date ? new Date(selectedLead.follow_up_date).toLocaleDateString() : '—'} />
+                    {selectedLead.linkedin_url && (
+                      <div className="flex items-start gap-3 bg-gray-900/40 border border-gray-700/30 rounded-xl p-3">
+                        <ExternalLink size={13} className="text-blue-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase text-gray-500 mb-0.5">LinkedIn</p>
+                          <a href={selectedLead.linkedin_url} className="text-xs text-blue-300 truncate block hover:underline">{selectedLead.linkedin_url}</a>
+                        </div>
+                      </div>
+                    )}
+                    {selectedLead.website_url && (
+                      <div className="flex items-start gap-3 bg-gray-900/40 border border-gray-700/30 rounded-xl p-3">
+                        <Link size={13} className="text-blue-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase text-gray-500 mb-0.5">Website</p>
+                          <a href={selectedLead.website_url} className="text-xs text-blue-300 truncate block hover:underline">{selectedLead.website_url}</a>
+                        </div>
+                      </div>
+                    )}
+                    {selectedLead.notes && (
+                      <div className="bg-gray-900/40 border border-gray-700/30 rounded-xl p-3">
+                        <p className="text-[10px] font-black uppercase text-gray-500 mb-1">Profile Notes</p>
+                        <p className="text-sm text-gray-300 whitespace-pre-wrap">{selectedLead.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Research card */}
+                  {(selectedLead.resources || []).filter((r: any) => r.type === 'AI_RESEARCH').map((resource: any) => (
+                    <div key={resource.id} className="border border-purple-500/40 bg-purple-900/10 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Brain size={14} className="text-purple-400" />
+                          <p className="text-xs font-black uppercase text-purple-400">AI Research Ready</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => openResearchModal(selectedLead)} className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-black uppercase">
+                            View Full <ChevronRight size={10} />
+                          </button>
+                          <button onClick={() => handleDeleteResource(resource.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={13} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Call Script */}
+                  {script && (
+                    <div className="bg-gray-900/60 border border-blue-500/20 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-blue-400 flex items-center gap-2"><FileText size={13} /> Call Script</h4>
+                        <button onClick={() => setScript(null)} className="text-gray-600 hover:text-gray-400"><X size={14} /></button>
+                      </div>
+                      {['opening', 'rapport', 'pitch', 'pain_points', 'objections', 'closing', 'follow_up'].map(key => script[key] && (
+                        <div key={key}>
+                          <p className="text-[10px] font-black uppercase text-gray-500">{key.replace('_', ' ')}</p>
+                          <p className="text-sm text-white font-semibold mt-0.5">{String(script[key])}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Danger zone */}
+                  <div className="pt-2">
+                    <button onClick={handleDeleteLead} className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-500/30 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-600 rounded-xl text-xs font-black uppercase transition-all">
+                      <Trash2 size={13} /> Delete Prospect
+                    </button>
+                  </div>
+                </div>
+
+                {/* RIGHT column */}
+                <div className="p-6 space-y-5">
+
+                  {/* Notes */}
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><StickyNote size={13} /> Notes</h4>
+                    <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
+                      {(selectedLead.noteHistory || []).length === 0 && (
+                        <p className="text-sm text-gray-600">No notes yet.</p>
+                      )}
+                      {(selectedLead.noteHistory || []).map((note: any) => (
+                        <div key={note.id} className="text-sm text-gray-300 border-l-2 border-blue-500/40 pl-3 py-1">{note.content}</div>
+                      ))}
+                    </div>
+                    <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." rows={3} className="w-full bg-gray-900 border border-gray-700/50 rounded-xl px-3 py-2.5 text-sm text-white resize-none focus:border-blue-500 outline-none" />
+                    <button onClick={handleAddNote} className="mt-2 w-full bg-gray-700 hover:bg-blue-600 text-white py-2 rounded-xl text-xs font-black uppercase transition-all">Add Note</button>
+                  </div>
+
+                  {/* Resources */}
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Globe size={13} /> Research Context</h4>
+                    <div className="space-y-2 mb-3">
+                      {(selectedLead.resources || []).filter((r: any) => r.type !== 'AI_RESEARCH').map((resource: any) => (
+                        <div key={resource.id} className="border border-gray-700/50 bg-gray-800/40 rounded-xl p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-blue-400">{resource.type}</p>
+                              <p className="text-sm font-bold text-white">{resource.title}</p>
+                            </div>
+                            <button onClick={() => handleDeleteResource(resource.id)} className="text-gray-600 hover:text-red-400 shrink-0"><Trash2 size={13} /></button>
+                          </div>
+                          {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-1 truncate"><ExternalLink size={11} /> {resource.url}</a>}
+                          <p className="text-xs text-gray-400 mt-1 line-clamp-3">{resource.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <select value={resourceForm.type} onChange={e => setResourceForm({ ...resourceForm, type: e.target.value })} className="bg-gray-900 border border-gray-700/50 rounded-xl px-3 py-2 text-xs text-white">
+                          {['NOTE', 'LINKEDIN', 'WEBSITE', 'PROFILE', 'OTHER'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                        <input value={resourceForm.title} onChange={e => setResourceForm({ ...resourceForm, title: e.target.value })} placeholder="Title" className="bg-gray-900 border border-gray-700/50 rounded-xl px-3 py-2 text-xs text-white" />
+                      </div>
+                      <input value={resourceForm.url} onChange={e => setResourceForm({ ...resourceForm, url: e.target.value })} placeholder="URL (optional)" className="w-full bg-gray-900 border border-gray-700/50 rounded-xl px-3 py-2 text-xs text-white" />
+                      <textarea value={resourceForm.content} onChange={e => setResourceForm({ ...resourceForm, content: e.target.value })} placeholder="Notes, profile details, pain points, context for AI..." rows={3} className="w-full bg-gray-900 border border-gray-700/50 rounded-xl px-3 py-2 text-xs text-white resize-none outline-none focus:border-blue-500" />
+                      <button onClick={handleAddResource} className="w-full bg-gray-700 hover:bg-blue-600 text-white py-2 rounded-xl text-xs font-black uppercase transition-all">Save Context</button>
+                    </div>
+                  </div>
+
+                  {/* Call history */}
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Calendar size={13} /> Call History</h4>
+                    {(selectedLead.sessions || []).length === 0
+                      ? <p className="text-sm text-gray-600">No calls yet.</p>
+                      : (selectedLead.sessions || []).map((session: any) => (
+                          <div key={session.id} className="bg-gray-900/50 border border-gray-700/40 rounded-xl p-3 mb-2">
+                            <p className="text-xs font-black text-white">{session.outcome || 'Session in progress'}</p>
+                            <p className="text-[10px] text-gray-500">{new Date(session.startTime).toLocaleString()}</p>
+                            {session.objections?.length > 0 && <p className="text-[10px] text-yellow-400 mt-1">{session.objections.length} objections</p>}
+                          </div>
+                        ))
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main list ── */}
+      <div className="flex-1 overflow-y-auto p-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-black tracking-tighter text-white">Prospects</h2>
           <div className="flex gap-3">
             <input ref={importInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportCsv} />
-            <button onClick={() => importInputRef.current?.click()} className="bg-gray-700 text-white px-4 py-3 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-              <Upload size={16} /> Import
-            </button>
-            <button onClick={exportCsv} className="bg-gray-700 text-white px-4 py-3 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-              <Download size={16} /> Export
-            </button>
-            <button onClick={openCreateForm} className="bg-blue-600 text-white px-5 py-3 rounded-xl font-black text-xs uppercase flex items-center gap-2">
-              <Plus size={16} /> New Prospect
-            </button>
+            <button onClick={() => importInputRef.current?.click()} className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2"><Upload size={15} /> Import</button>
+            <button onClick={exportCsv} className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2"><Download size={15} /> Export</button>
+            <button onClick={openCreateForm} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2"><Plus size={15} /> New Prospect</button>
           </div>
         </div>
 
-        {loadError && <div className="mb-6 bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl p-4 text-sm font-bold">{loadError}</div>}
-        {successMessage && <div className="mb-6 bg-green-500/10 border border-green-500/30 text-green-300 rounded-xl p-4 text-sm font-bold">{successMessage}</div>}
-
-        {formMode !== 'closed' && (
-          <LeadFormPanel
-            mode={formMode}
-            formData={formData}
-            formError={formError}
-            setFormData={setFormData}
-            onSave={handleSaveLead}
-            onCancel={() => setFormMode('closed')}
-          />
-        )}
+        {loadError && <div className="mb-5 bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl p-4 text-sm font-bold">{loadError}</div>}
+        {successMessage && <div className="mb-5 bg-green-500/10 border border-green-500/30 text-green-300 rounded-xl p-4 text-sm font-bold">{successMessage}</div>}
 
         <div className="flex gap-3 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
-            <input type="text" placeholder="Search name, phone, or property" className="w-full bg-gray-800/40 border border-gray-700/50 rounded-xl py-3 pl-12 pr-4 text-white text-sm font-bold focus:outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+            <input type="text" placeholder="Search name, phone, or property" className="w-full bg-gray-800/40 border border-gray-700/50 rounded-xl py-2.5 pl-11 pr-4 text-white text-sm font-bold focus:outline-none focus:border-blue-500" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 text-sm text-white font-bold">
-            {statusOptions.map(status => <option key={status} value={status}>{status.replace('_', ' ')}</option>)}
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 text-sm text-white font-bold">
+            {statusOptions.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
           </select>
         </div>
 
-        <div className="grid gap-4">
-          {filteredLeads.map((lead) => (
-            <button key={lead.id} onClick={() => setSelectedLeadId(lead.id)} className={`text-left bg-gray-800/40 border rounded-2xl p-5 flex items-center justify-between hover:bg-gray-800 transition-all ${selectedLeadId === lead.id ? 'border-blue-500' : 'border-gray-700/50'}`}>
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 font-black text-xl border border-blue-500/20 shrink-0">{lead.full_name.charAt(0)}</div>
-                <div className="min-w-0">
-                  <h3 className="font-black text-white truncate">{lead.full_name}</h3>
-                <p className="text-sm text-gray-500 font-bold truncate">{lead.phone_number} {lead.property_address ? `- ${lead.property_address}` : ''}</p>
-                  {lead.follow_up_date && <p className="text-[10px] text-blue-400 font-black uppercase mt-1">Follow up {new Date(lead.follow_up_date).toLocaleDateString()}</p>}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredLeads.map(lead => (
+            <button
+              key={lead.id}
+              onClick={() => setSelectedLeadId(lead.id)}
+              className="text-left bg-gray-800/40 border border-gray-700/50 hover:border-blue-500/60 hover:bg-gray-800 rounded-2xl p-5 transition-all group"
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 bg-blue-600/10 border border-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 font-black shrink-0">
+                    {lead.full_name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-white truncate group-hover:text-blue-300 transition-colors">{lead.full_name}</h3>
+                    <p className="text-xs text-gray-500 font-bold truncate">{lead.phone_number}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-green-400 font-black text-xs">{Math.round(Number(lead.deal_score || 0))}%</span>
+                  <StatusBadge status={lead.call_status} />
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <div className="flex items-center gap-2 text-green-500 font-black text-xs uppercase justify-end"><TrendingUp size={12} /> {Math.round(Number(lead.deal_score || 0))}%</div>
-                <p className="text-[10px] text-gray-500 font-black uppercase mt-1">{lead.call_status?.replace('_', ' ')}</p>
-              </div>
+              {lead.property_address && (
+                <p className="text-xs text-gray-500 truncate mb-2 flex items-center gap-1.5"><Globe size={11} className="shrink-0" /> {lead.property_address}</p>
+              )}
+              {(lead.seller_motivation || lead.motivation_tags) && (
+                <p className="text-xs text-blue-400/80 truncate mb-2 flex items-center gap-1.5"><Zap size={11} className="shrink-0" /> {lead.seller_motivation || lead.motivation_tags}</p>
+              )}
+              {lead.follow_up_date && (
+                <p className="text-[10px] text-yellow-400 font-black uppercase flex items-center gap-1.5 mt-1"><Calendar size={10} /> Follow up {new Date(lead.follow_up_date).toLocaleDateString()}</p>
+              )}
+              {researchingLeads.has(lead.id) && (
+                <div className="flex items-center gap-1.5 mt-2 text-purple-400 text-[10px] font-black uppercase">
+                  <Loader2 size={10} className="animate-spin" /> Researching...
+                </div>
+              )}
             </button>
           ))}
         </div>
       </div>
-
-      <aside className="border-l border-gray-700/50 bg-gray-800/20 p-6 overflow-y-auto">
-        {selectedLead ? (
-          <div className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-2xl font-black text-white">{selectedLead.full_name}</h3>
-                <p className="text-sm font-bold text-gray-500">{selectedLead.phone_number}</p>
-              </div>
-              <button onClick={() => handleStartCall(selectedLead)} className="p-4 bg-green-600 text-white rounded-xl"><Phone size={20} /></button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <ActionButton icon={<Edit3 size={15} />} label="Edit" onClick={openEditForm} />
-              <ActionButton icon={<FileText size={15} />} label={isGeneratingScript ? 'Working...' : 'Call Script'} onClick={handleGenerateScript} />
-              <ActionButton
-                icon={researchingLeads.has(selectedLead.id) ? <Loader2 size={15} className="animate-spin" /> : <Brain size={15} />}
-                label={researchingLeads.has(selectedLead.id) ? 'Running...' : 'AI Research'}
-                onClick={() => handleResearch(selectedLead)}
-                highlight
-              />
-              <ActionButton icon={<Trash2 size={15} />} label="Delete" onClick={handleDeleteLead} danger />
-            </div>
-
-            <div className="bg-gray-900/50 border border-gray-700/50 rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase text-gray-500 mb-3">Quick Actions</p>
-              <div className="grid grid-cols-2 gap-2">
-                <ActionButton icon={<Phone size={15} />} label="Contacted" onClick={() => handleQuickStatus('CONTACTED')} />
-                <ActionButton icon={<TrendingUp size={15} />} label="Qualified" onClick={() => handleQuickStatus('QUALIFIED')} />
-                <ActionButton icon={<Calendar size={15} />} label="Tomorrow" onClick={scheduleTomorrow} />
-                <ActionButton icon={<X size={15} />} label="Not Interested" onClick={() => handleQuickStatus('NOT_INTERESTED')} danger />
-              </div>
-            </div>
-
-            <InfoBlock label="Property" value={selectedLead.property_address || 'No address yet'} />
-            <LinkBlock label="LinkedIn / Profile" url={selectedLead.linkedin_url} />
-            <LinkBlock label="Website" url={selectedLead.website_url} />
-            <InfoBlock label="Motivation" value={selectedLead.seller_motivation || selectedLead.motivation_tags || 'No motivation captured'} />
-            <InfoBlock label="Notes" value={selectedLead.notes || 'No profile notes'} />
-            <InfoBlock label="Follow Up" value={selectedLead.follow_up_date ? new Date(selectedLead.follow_up_date).toLocaleDateString() : 'No follow-up scheduled'} />
-
-            {script && (
-              <div className="bg-gray-900/70 border border-blue-500/30 rounded-2xl p-4 space-y-3">
-                <h4 className="text-xs font-black uppercase text-blue-400">AI Call Prep</h4>
-                {['opening', 'rapport', 'pitch', 'pain_points', 'objections', 'closing', 'follow_up', 'personalization_notes', 'research_used'].map(key => (
-                  <div key={key}>
-                    <p className="text-[10px] font-black uppercase text-gray-500">{key.replace('_', ' ')}</p>
-                    <p className="text-sm text-white font-semibold">{String(script[key] || '')}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="bg-gray-900/50 border border-gray-700/50 rounded-2xl p-4">
-              <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><StickyNote size={14} /> Notes</h4>
-              <div className="space-y-3 mb-4">
-                {(selectedLead.noteHistory || []).map((note: any) => (
-                  <div key={note.id} className="text-sm text-gray-300 border-l-2 border-blue-500/40 pl-3">{note.content}</div>
-                ))}
-              </div>
-              <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add call note..." className="w-full bg-gray-800 border border-gray-700/50 rounded-xl p-3 text-sm text-white min-h-24" />
-              <button onClick={handleAddNote} className="mt-3 w-full bg-gray-700 hover:bg-blue-600 text-white py-2 rounded-xl text-xs font-black uppercase">Add Note</button>
-            </div>
-
-            <div className="bg-gray-900/50 border border-gray-700/50 rounded-2xl p-4">
-              <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Globe size={14} /> AI Research Context</h4>
-              {/* AI_RESEARCH card — click to open full modal */}
-              {(selectedLead.resources || []).filter((r: any) => r.type === 'AI_RESEARCH').map((resource: any) => (
-                <div key={resource.id} className="border border-purple-500/40 bg-purple-900/10 rounded-xl p-4 mb-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Brain size={14} className="text-purple-400 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase text-purple-400">AI Research Ready</p>
-                        <p className="text-sm font-black text-white truncate">{resource.title}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => openResearchModal(selectedLead)} className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-black uppercase">
-                        View <ChevronRight size={11} />
-                      </button>
-                      <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={13} /></button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <div className="space-y-3 mb-4">
-                {(selectedLead.resources || []).filter((r: any) => r.type !== 'AI_RESEARCH').map((resource: any) => (
-                  <div key={resource.id} className="border border-gray-700/50 bg-gray-800/40 rounded-xl p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase text-blue-400">{resource.type.replace('_', ' ')}</p>
-                        <p className="text-sm font-black text-white truncate">{resource.title}</p>
-                      </div>
-                      <button onClick={() => handleDeleteResource(resource.id)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
-                    </div>
-                    {resource.url && <a href={resource.url} className="text-xs text-blue-300 flex items-center gap-1 mt-2 truncate"><ExternalLink size={12} /> {resource.url}</a>}
-                    <p className="text-sm text-gray-300 mt-2 whitespace-pre-wrap">{resource.content}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <select value={resourceForm.type} onChange={(e) => setResourceForm({ ...resourceForm, type: e.target.value })} className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-white">
-                  {['NOTE', 'LINKEDIN', 'WEBSITE', 'PROFILE', 'OTHER'].map(type => <option key={type} value={type}>{type}</option>)}
-                </select>
-                <input value={resourceForm.title} onChange={(e) => setResourceForm({ ...resourceForm, title: e.target.value })} placeholder="Title" className="bg-gray-800 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-white" />
-              </div>
-              <input value={resourceForm.url} onChange={(e) => setResourceForm({ ...resourceForm, url: e.target.value })} placeholder="Profile or website URL" className="w-full bg-gray-800 border border-gray-700/50 rounded-xl px-3 py-2 text-sm text-white mb-2" />
-              <textarea value={resourceForm.content} onChange={(e) => setResourceForm({ ...resourceForm, content: e.target.value })} placeholder="Paste custom notes, profile details, website summary, pain points, or deal context for the AI..." className="w-full bg-gray-800 border border-gray-700/50 rounded-xl p-3 text-sm text-white min-h-28" />
-              <button onClick={handleAddResource} className="mt-3 w-full bg-gray-700 hover:bg-blue-600 text-white py-2 rounded-xl text-xs font-black uppercase">Save AI Context</button>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-2"><Calendar size={14} /> Recent Calls</h4>
-              <div className="space-y-3">
-                {(selectedLead.sessions || []).map((session: any) => (
-                  <div key={session.id} className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-3">
-                    <p className="text-xs font-black text-white">{session.outcome || 'Session in progress'}</p>
-                    <p className="text-[10px] text-gray-500">{new Date(session.startTime).toLocaleString()}</p>
-                    <p className="text-[10px] text-yellow-400 mt-1">{session.objections?.length || 0} objections</p>
-                  </div>
-                ))}
-                {!selectedLead.sessions?.length && <p className="text-sm text-gray-500">No calls yet.</p>}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center text-gray-500 font-bold">Select a prospect</div>
-        )}
-      </aside>
     </div>
   );
 };
@@ -658,6 +738,31 @@ const ActionButton = ({ icon, label, onClick, danger = false, highlight = false 
   }`}>
     {icon} {label}
   </button>
+);
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const styles: Record<string, string> = {
+    NEW: 'bg-blue-500/10 text-blue-400',
+    CONTACTED: 'bg-yellow-500/10 text-yellow-400',
+    FOLLOW_UP: 'bg-orange-500/10 text-orange-400',
+    QUALIFIED: 'bg-green-500/10 text-green-400',
+    NOT_INTERESTED: 'bg-red-500/10 text-red-400',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${styles[status] || 'bg-gray-500/10 text-gray-400'}`}>
+      {status?.replace(/_/g, ' ') || 'UNKNOWN'}
+    </span>
+  );
+};
+
+const DetailRow = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+  <div className="flex items-start gap-3 bg-gray-900/40 border border-gray-700/30 rounded-xl p-3">
+    <div className="text-gray-500 shrink-0 mt-0.5">{icon}</div>
+    <div>
+      <p className="text-[10px] font-black uppercase text-gray-500 mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-white">{value}</p>
+    </div>
+  </div>
 );
 
 // ── AI Research full-page modal ──────────────────────────────────────────────
