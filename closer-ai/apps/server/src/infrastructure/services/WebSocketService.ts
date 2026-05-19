@@ -31,8 +31,15 @@ export class WebSocketService {
       let clientTranscriptionManager: TranscriptionManager | null = null;
 
       const makeTranscriber = (speaker: 'Caller' | 'Client') => {
-          if (!process.env.OPENAI_API_KEY) return null;
-          const mgr = new TranscriptionManager(process.env.OPENAI_API_KEY);
+          const whisperKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY;
+          // OpenRouter keys (sk-or-*) don't support audio/transcriptions — skip silently
+          if (!whisperKey || whisperKey.startsWith('sk-or-')) {
+              if (whisperKey?.startsWith('sk-or-')) {
+                  logger.warn('Whisper transcription disabled: OPENAI_API_KEY is an OpenRouter key. Set WHISPER_API_KEY to a real OpenAI key to enable live transcription.');
+              }
+              return null;
+          }
+          const mgr = new TranscriptionManager(whisperKey);
           mgr.on('transcription', async (text: string) => {
               if (currentSessionId) {
                   const mode = speaker === 'Caller' ? 'beginner' : undefined;

@@ -29,7 +29,14 @@ app.use('/api/leads', leadRoutes);
 
 // Basic health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', aiConfigured: !!process.env.OPENAI_API_KEY });
+  const whisperKey = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY;
+  const whisperReady = !!whisperKey && !whisperKey.startsWith('sk-or-');
+  res.json({
+    status: 'ok',
+    aiConfigured: !!process.env.OPENAI_API_KEY,
+    whisperReady,
+    whisperNote: !whisperReady ? 'Set WHISPER_API_KEY to a real OpenAI key to enable live transcription' : undefined,
+  });
 });
 
 app.get('/health/db', async (req, res) => {

@@ -12,7 +12,12 @@ export class TranscriptionManager extends EventEmitter {
 
   constructor(apiKey: string) {
     super();
-    this.openai = new OpenAI({ apiKey });
+    // Whisper is only available on api.openai.com — explicitly override baseURL
+    // so the env var OPENAI_BASE_URL (which may point to OpenRouter) is ignored.
+    this.openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.WHISPER_BASE_URL || 'https://api.openai.com/v1',
+    });
   }
 
   async addAudioChunk(base64Chunk: string) {

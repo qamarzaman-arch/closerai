@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Bot, CheckCircle, Database, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
+import { Bot, CheckCircle, Database, Mic, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
 
 import { API_BASE } from '../../config/api';
 
@@ -10,6 +10,8 @@ const SettingsView: React.FC = () => {
   const [apiStatus, setApiStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [dbStatus, setDbStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [aiStatus, setAiStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const [whisperStatus, setWhisperStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const [whisperNote, setWhisperNote] = useState<string | undefined>();
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [dbProvider, setDbProvider] = useState('Database');
 
@@ -17,10 +19,13 @@ const SettingsView: React.FC = () => {
     setApiStatus('checking');
     setDbStatus('checking');
     setAiStatus('checking');
+    setWhisperStatus('checking');
 
     try {
       const res = await axios.get(`${API}/health`);
       setApiStatus('ok');
+      setWhisperStatus(res.data?.whisperReady ? 'ok' : 'error');
+      setWhisperNote(res.data?.whisperNote);
       if (res.data?.aiConfigured === false) setAiStatus('error');
     } catch {
       setApiStatus('error');
@@ -60,10 +65,17 @@ const SettingsView: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <StatusCard icon={<Server />} label="Backend API" status={apiStatus} detail="Express + WebSocket service on port 3001" />
-        <StatusCard icon={<Database />} label={dbProvider.toUpperCase()} status={dbStatus} detail="Local database for leads, sessions, and transcripts" />
-        <StatusCard icon={<Bot />} label="OpenRouter / AI" status={aiStatus} detail="OpenAI-compatible provider for script and call coaching" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <StatusCard icon={<Server />} label="Backend API" status={apiStatus} detail="Express + WebSocket on port 3001" />
+        <StatusCard icon={<Database />} label={dbProvider.toUpperCase()} status={dbStatus} detail="Local database for leads, sessions, transcripts" />
+        <StatusCard icon={<Bot />} label="OpenRouter / AI" status={aiStatus} detail="Chat model for scripts and call coaching" />
+        <StatusCard
+          icon={<Mic />}
+          label="Whisper / TTS"
+          status={whisperStatus}
+          detail={whisperNote || 'Real-time audio transcription via OpenAI Whisper'}
+          warn={!!whisperNote}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -72,6 +84,7 @@ const SettingsView: React.FC = () => {
           <div className="space-y-3">
             <ControlLine label="Local MySQL persistence" enabled />
             <ControlLine label="OpenRouter AI generation" enabled />
+        <ControlLine label="Whisper live transcription" enabled={whisperStatus === 'ok'} />
             <ControlLine label="Secure Electron context isolation" enabled />
             <ControlLine label="CSV import/export" enabled />
             <ControlLine label="Lead-specific AI research context" enabled />
@@ -91,14 +104,14 @@ const SettingsView: React.FC = () => {
   );
 };
 
-const StatusCard = ({ icon, label, status, detail }: any) => (
-  <div className="bg-gray-900/70 border border-gray-800 rounded-2xl p-6">
+const StatusCard = ({ icon, label, status, detail, warn }: any) => (
+  <div className={`bg-gray-900/70 border rounded-2xl p-6 ${warn ? 'border-yellow-700/50' : 'border-gray-800'}`}>
     <div className="flex items-center justify-between mb-5">
-      <div className="text-blue-400">{icon}</div>
+      <div className={warn ? 'text-yellow-500' : 'text-blue-400'}>{icon}</div>
       <StatusPill status={status} />
     </div>
     <h3 className="font-black text-white">{label}</h3>
-    <p className="text-sm text-gray-500 font-semibold mt-2">{detail}</p>
+    <p className={`text-sm font-semibold mt-2 ${warn ? 'text-yellow-600' : 'text-gray-500'}`}>{detail}</p>
   </div>
 );
 
