@@ -520,17 +520,49 @@ const LeadsView: React.FC = () => {
 
                   {/* Call Script */}
                   {script && (
-                    <div className="bg-gray-900/60 border border-blue-500/20 rounded-2xl p-4 space-y-3">
+                    <div className="bg-gray-900/60 border border-blue-500/20 rounded-2xl p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black uppercase text-blue-400 flex items-center gap-2"><FileText size={13} /> Call Script</h4>
                         <button onClick={() => setScript(null)} className="text-gray-600 hover:text-gray-400"><X size={14} /></button>
                       </div>
-                      {['opening', 'rapport', 'pitch', 'pain_points', 'objections', 'closing', 'follow_up'].map(key => script[key] && (
-                        <div key={key}>
-                          <p className="text-[10px] font-black uppercase text-gray-500">{key.replace('_', ' ')}</p>
-                          <p className="text-sm text-white font-semibold mt-0.5">{String(script[key])}</p>
-                        </div>
-                      ))}
+                      {['opening', 'rapport', 'pitch', 'pain_points', 'objections', 'closing', 'follow_up', 'personalization_notes'].map(key => {
+                        const val = script[key];
+                        if (!val) return null;
+                        const isArray = Array.isArray(val);
+                        const isObj = !isArray && typeof val === 'object';
+                        return (
+                          <div key={key} className="bg-gray-800/50 rounded-xl p-3">
+                            <p className="text-[10px] font-black uppercase text-blue-300/70 mb-1.5">{key.replace(/_/g, ' ')}</p>
+                            {isArray ? (
+                              <ul className="space-y-1.5">
+                                {val.map((item: any, i: number) => (
+                                  <li key={i} className="flex gap-2 text-sm text-white">
+                                    <span className="text-blue-400 shrink-0">→</span>
+                                    {typeof item === 'object' ? JSON.stringify(item) : item}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : isObj ? (
+                              <ul className="space-y-1.5">
+                                {Object.entries(val).map(([k, v]) => (
+                                  <li key={k} className="text-sm text-white">
+                                    <span className="text-blue-400 font-bold uppercase text-[10px]">{k.replace(/_/g, ' ')}: </span>
+                                    {String(v)}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-white font-medium leading-relaxed">{String(val)}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {script.research_used && (
+                        <details className="mt-1">
+                          <summary className="text-[10px] font-black uppercase text-gray-500 cursor-pointer hover:text-gray-400">Research Used</summary>
+                          <p className="text-xs text-gray-400 mt-1.5 whitespace-pre-wrap">{script.research_used}</p>
+                        </details>
+                      )}
                     </div>
                   )}
 
